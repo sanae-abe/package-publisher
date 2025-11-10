@@ -3,6 +3,9 @@
 import { Command } from 'commander'
 import { PackagePublisher } from './core/PackagePublisher'
 import { NPMPlugin } from './plugins/NPMPlugin'
+import { CratesIOPlugin } from './plugins/CratesIOPlugin'
+import { PyPIPlugin } from './plugins/PyPIPlugin'
+import { HomebrewPlugin } from './plugins/HomebrewPlugin'
 import chalk from 'chalk'
 
 const program = new Command()
@@ -30,10 +33,11 @@ program
 
       const publisher = new PackagePublisher(projectPath)
 
-      // Register plugins
+      // Register all plugins
       publisher.registerPlugin(new NPMPlugin(projectPath))
-      // publisher.registerPlugin(new CratesIOPlugin(projectPath))
-      // TODO: Add more plugins
+      publisher.registerPlugin(new CratesIOPlugin(projectPath))
+      publisher.registerPlugin(new PyPIPlugin(projectPath))
+      publisher.registerPlugin(new HomebrewPlugin(projectPath))
 
       const publishOptions = {
         registry: options.registry,
@@ -101,9 +105,11 @@ program
 
       const publisher = new PackagePublisher(projectPath)
 
-      // Register plugins
+      // Register all plugins
       publisher.registerPlugin(new NPMPlugin(projectPath))
-      // TODO: Add more plugins
+      publisher.registerPlugin(new CratesIOPlugin(projectPath))
+      publisher.registerPlugin(new PyPIPlugin(projectPath))
+      publisher.registerPlugin(new HomebrewPlugin(projectPath))
 
       const detected = await publisher.detectRegistries()
 

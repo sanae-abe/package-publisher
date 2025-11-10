@@ -95,6 +95,7 @@ export interface PublishResult {
   packageUrl?: string
   output?: string
   error?: string
+  metadata?: Record<string, any>
 }
 
 // ============================================================================

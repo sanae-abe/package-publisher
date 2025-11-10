@@ -62,6 +62,15 @@ export const ErrorCodes = {
     recoverable: true,
     actions: ['環境変数を設定してください（例: NPM_TOKEN, CARGO_REGISTRY_TOKEN）']
   },
+  AUTHENTICATION_FAILED: {
+    message: '認証に失敗しました',
+    recoverable: true,
+    actions: [
+      '認証情報を確認してください',
+      '環境変数が正しく設定されているか確認してください',
+      'トークンの有効期限を確認してください'
+    ]
+  },
 
   // Publishing errors
   PUBLISH_FAILED: {

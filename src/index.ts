@@ -11,9 +11,9 @@ export { RetryManager } from './core/RetryManager'
 
 // Plugins
 export { NPMPlugin } from './plugins/NPMPlugin'
-// export { CratesIOPlugin } from './plugins/CratesIOPlugin'
-// export { PyPIPlugin } from './plugins/PyPIPlugin'
-// export { HomebrewPlugin } from './plugins/HomebrewPlugin'
+export { CratesIOPlugin } from './plugins/CratesIOPlugin'
+export { PyPIPlugin } from './plugins/PyPIPlugin'
+export { HomebrewPlugin } from './plugins/HomebrewPlugin'
 
 // Security
 export { SecureTokenManager } from './security/SecureTokenManager'
