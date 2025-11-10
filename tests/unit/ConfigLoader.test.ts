@@ -126,6 +126,90 @@ describe('ConfigLoader', () => {
     })
   })
 
+  describe('extends機能', () => {
+    it('extends で基底設定を継承する', async () => {
+      const baseConfigPath = '/base/.publish-config.yaml'
+
+      ;(fs.access as jest.Mock).mockImplementation((filePath: string) => {
+        if (filePath.includes(mockProjectPath) || filePath === baseConfigPath) {
+          return Promise.resolve()
+        }
+        return Promise.reject(new Error('File not found'))
+      })
+
+      ;(fs.readFile as jest.Mock).mockImplementation((filePath: string) => {
+        if (filePath === baseConfigPath) {
+          return Promise.resolve(
+            `version: "1.0"\nregistries:\n  npm:\n    tag: "latest"\n    access: "public"`
+          )
+        }
+        return Promise.resolve(
+          `version: "1.0"\nextends: "${baseConfigPath}"\nregistries:\n  npm:\n    tag: "beta"`
+        )
+      })
+
+      const config = await ConfigLoader.load({
+        projectPath: mockProjectPath
+      })
+
+      // extends先のaccessは継承、tagは上書き
+      expect(config.registries?.npm?.tag).toBe('beta')
+      expect(config.registries?.npm?.access).toBe('public')
+    })
+
+    it('extends が存在しないファイルを指す場合は無視', async () => {
+      ;(fs.access as jest.Mock).mockImplementation((filePath: string) => {
+        if (filePath.includes(mockProjectPath)) {
+          return Promise.resolve()
+        }
+        return Promise.reject(new Error('File not found'))
+      })
+
+      ;(fs.readFile as jest.Mock).mockImplementation(() => {
+        return Promise.resolve(
+          `version: "1.0"\nextends: "/nonexistent/.publish-config.yaml"\nregistries:\n  npm:\n    tag: "latest"`
+        )
+      })
+
+      const config = await ConfigLoader.load({
+        projectPath: mockProjectPath
+      })
+
+      // extends失敗しても読み込み自体は成功
+      expect(config.registries?.npm?.tag).toBe('latest')
+    })
+
+    it('extends の深いマージが正しく動作', async () => {
+      const baseConfigPath = '/base/.publish-config.yaml'
+
+      ;(fs.access as jest.Mock).mockImplementation((filePath: string) => {
+        if (filePath.includes(mockProjectPath) || filePath === baseConfigPath) {
+          return Promise.resolve()
+        }
+        return Promise.reject(new Error('File not found'))
+      })
+
+      ;(fs.readFile as jest.Mock).mockImplementation((filePath: string) => {
+        if (filePath === baseConfigPath) {
+          return Promise.resolve(
+            `version: "1.0"\nsecurity:\n  envVarExpansion:\n    enabled: true\n    allowedPrefixes:\n      - "NPM_"`
+          )
+        }
+        return Promise.resolve(
+          `version: "1.0"\nextends: "${baseConfigPath}"\nsecurity:\n  envVarExpansion:\n    allowedPrefixes:\n      - "PUBLISH_"`
+        )
+      })
+
+      const config = await ConfigLoader.load({
+        projectPath: mockProjectPath
+      })
+
+      // enabledは継承、allowedPrefixesは上書き
+      expect(config.security?.envVarExpansion?.enabled).toBe(true)
+      expect(config.security?.envVarExpansion?.allowedPrefixes).toEqual(['PUBLISH_'])
+    })
+  })
+
   describe('expandEnvVars', () => {
     it('環境変数を展開する', async () => {
       ;(fs.access as jest.Mock).mockImplementation((filePath: string) => {
@@ -234,6 +318,73 @@ describe('ConfigLoader', () => {
       )
 
       consoleSpy.mockRestore()
+    })
+
+    it('配列内の環境変数を展開する', async () => {
+      ;(fs.access as jest.Mock).mockImplementation((filePath: string) => {
+        if (filePath.includes(mockProjectPath)) {
+          return Promise.resolve()
+        }
+        return Promise.reject(new Error('File not found'))
+      })
+
+      ;(fs.readFile as jest.Mock).mockResolvedValue(
+        `version: "1.0"\nvariables:\n  ALLOWED_PREFIXES:\n    - "\${NPM_PREFIX}"\n    - "\${PUBLISH_PREFIX}"\nsecurity:\n  envVarExpansion:\n    allowedPrefixes:\n      - "NPM_"\n      - "PUBLISH_"`
+      )
+
+      const config = await ConfigLoader.load({
+        projectPath: mockProjectPath,
+        env: {
+          NPM_PREFIX: 'npm-',
+          PUBLISH_PREFIX: 'publish-'
+        }
+      })
+
+      expect(config.variables?.ALLOWED_PREFIXES).toEqual(['npm-', 'publish-'])
+    })
+
+    it('ネストされたオブジェクト内の環境変数を展開する', async () => {
+      ;(fs.access as jest.Mock).mockImplementation((filePath: string) => {
+        if (filePath.includes(mockProjectPath)) {
+          return Promise.resolve()
+        }
+        return Promise.reject(new Error('File not found'))
+      })
+
+      ;(fs.readFile as jest.Mock).mockResolvedValue(
+        `version: "1.0"\nsecurity:\n  allowedCommands:\n    npm:\n      executable: "\${NPM_PATH}"\n      allowedArgs:\n        - "publish"`
+      )
+
+      const config = await ConfigLoader.load({
+        projectPath: mockProjectPath,
+        env: {
+          NPM_PATH: '/usr/local/bin/npm'
+        }
+      })
+
+      expect(config.security?.allowedCommands?.npm?.executable).toBe('/usr/local/bin/npm')
+    })
+
+    it('環境変数展開が無効の場合はスキップ', async () => {
+      ;(fs.access as jest.Mock).mockImplementation((filePath: string) => {
+        if (filePath.includes(mockProjectPath)) {
+          return Promise.resolve()
+        }
+        return Promise.reject(new Error('File not found'))
+      })
+
+      ;(fs.readFile as jest.Mock).mockResolvedValue(
+        `version: "1.0"\nvariables:\n  TOKEN: "\${NPM_TOKEN}"\nsecurity:\n  envVarExpansion:\n    enabled: false`
+      )
+
+      const config = await ConfigLoader.load({
+        projectPath: mockProjectPath,
+        env: {
+          NPM_TOKEN: 'should-not-expand'
+        }
+      })
+
+      expect(config.variables?.TOKEN).toBe('${NPM_TOKEN}')
     })
   })
 
