@@ -1,11 +1,14 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import { ScanReport, SecretFinding, SecretPattern } from '../core/interfaces'
+import { SecretsScanningConfig } from '../core/PublishConfig'
+import ora, { Ora } from 'ora'
 
 /**
  * Scanner for detecting hardcoded secrets in source code
  */
 export class SecretsScanner {
+  private customIgnorePatterns: RegExp[] = []
   private static readonly PATTERNS: SecretPattern[] = [
     {
       name: 'Generic API Key',
@@ -69,20 +72,64 @@ export class SecretsScanner {
     /\.map$/,
     /package-lock\.json$/,
     /yarn\.lock$/,
-    /pnpm-lock\.yaml$/
+    /pnpm-lock\.yaml$/,
+    /tests?\//,          // tests/ or test/ directories
+    /__mocks__/,         // Mock data directories
+    /__fixtures__/,      // Test fixture directories
+    /\.test\./,          // *.test.ts, *.test.js files
+    /\.spec\./           // *.spec.ts, *.spec.js files
   ]
+
+  /**
+   * Configure custom ignore patterns from config file
+   */
+  configure(config?: SecretsScanningConfig): void {
+    if (!config?.ignorePatterns) {
+      return
+    }
+
+    this.customIgnorePatterns = config.ignorePatterns.map((ignore) => {
+      // Convert glob pattern to regex
+      const globPattern = ignore.pattern
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.')
+      return new RegExp(globPattern)
+    })
+  }
 
   /**
    * Scan a project for hardcoded secrets
    */
-  async scanProject(projectPath: string, _allowedFiles: string[] = []): Promise<ScanReport> {
+  async scanProject(
+    projectPath: string,
+    _allowedFiles: string[] = [],
+    showProgress = true
+  ): Promise<ScanReport> {
     const findings: SecretFinding[] = []
     let scannedFiles = 0
     const skippedFiles: string[] = []
 
     const files = await this.getFilesToScan(projectPath)
+    const totalFiles = files.length
 
-    for (const file of files) {
+    let spinner: Ora | undefined
+    if (showProgress) {
+      spinner = ora({
+        text: `シークレットスキャン: 0/${totalFiles} ファイル`,
+        color: 'cyan'
+      }).start()
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+
+      // Update progress
+      if (spinner) {
+        const progress = Math.round(((i + 1) / totalFiles) * 100)
+        spinner.text = `シークレットスキャン: ${i + 1}/${totalFiles} ファイル (${progress}%)`
+      }
+
       // Skip ignored patterns
       if (this.shouldIgnore(file)) {
         skippedFiles.push(file)
@@ -97,6 +144,14 @@ export class SecretsScanner {
       } catch (error) {
         // Skip files that can't be read as text
         skippedFiles.push(file)
+      }
+    }
+
+    if (spinner) {
+      if (findings.length > 0) {
+        spinner.fail(`シークレットスキャン完了: ${findings.length}件の潜在的なシークレットを検出`)
+      } else {
+        spinner.succeed(`シークレットスキャン完了: 問題なし (${scannedFiles}ファイルをスキャン)`)
       }
     }
 
@@ -177,7 +232,17 @@ export class SecretsScanner {
    * Check if file should be ignored
    */
   private shouldIgnore(filePath: string): boolean {
-    return SecretsScanner.DEFAULT_IGNORE_PATTERNS.some((pattern) => pattern.test(filePath))
+    // Check default patterns
+    if (SecretsScanner.DEFAULT_IGNORE_PATTERNS.some((pattern) => pattern.test(filePath))) {
+      return true
+    }
+
+    // Check custom patterns from config
+    if (this.customIgnorePatterns.some((pattern) => pattern.test(filePath))) {
+      return true
+    }
+
+    return false
   }
 
   /**

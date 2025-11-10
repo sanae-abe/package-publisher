@@ -67,7 +67,7 @@ class MockPlugin implements RegistryPlugin {
 
 describe('PackagePublisher', () => {
   let publisher: PackagePublisher
-  const testProjectPath = '/test/project'
+  const testProjectPath = '/tmp/example-project'
   const mockHomeDir = '/home/user'
 
   beforeEach(() => {
