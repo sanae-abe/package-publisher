@@ -132,11 +132,7 @@ export class PackagePublisher {
           console.error(`  - [${error.field}] ${error.message}`)
           errors.push(`${error.field}: ${error.message}`)
         }
-        throw ErrorFactory.create(
-          'VALIDATION_FAILED',
-          registryName,
-          '検証に失敗しました'
-        )
+        throw ErrorFactory.create('VALIDATION_FAILED', registryName, '検証に失敗しました')
       }
 
       if (validationResult.warnings.length > 0) {
@@ -166,11 +162,7 @@ export class PackagePublisher {
               errors.push(error.message)
             }
           }
-          throw ErrorFactory.create(
-            'PUBLISH_FAILED',
-            registryName,
-            'Dry-runに失敗しました'
-          )
+          throw ErrorFactory.create('PUBLISH_FAILED', registryName, 'Dry-runに失敗しました')
         }
 
         console.log('✅ Dry-run完了')

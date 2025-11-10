@@ -24,11 +24,7 @@ export class SafeCommandExecutor {
   /**
    * Execute a command safely with whitelist validation
    */
-  async execSafe(
-    command: string,
-    args: string[],
-    options: ExecOptions = {}
-  ): Promise<ExecResult> {
+  async execSafe(command: string, args: string[], options: ExecOptions = {}): Promise<ExecResult> {
     // Validate command is in whitelist
     if (!SafeCommandExecutor.ALLOWED_COMMANDS.includes(command)) {
       throw new Error(

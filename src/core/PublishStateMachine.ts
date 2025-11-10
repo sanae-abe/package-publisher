@@ -1,10 +1,6 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import {
-  PublishState,
-  StateTransition,
-  PublishStateData
-} from './interfaces'
+import { PublishState, StateTransition, PublishStateData } from './interfaces'
 
 /**
  * State machine for tracking publishing workflow with resume capability
@@ -26,10 +22,7 @@ export class PublishStateMachine {
   /**
    * Transition to a new state
    */
-  async transition(
-    to: PublishState,
-    metadata?: Record<string, any>
-  ): Promise<void> {
+  async transition(to: PublishState, metadata?: Record<string, any>): Promise<void> {
     const transition: StateTransition = {
       from: this.currentState,
       to,
@@ -119,11 +112,7 @@ export class PublishStateMachine {
       error: this.error
     }
 
-    await fs.writeFile(
-      this.stateFilePath,
-      JSON.stringify(data, null, 2),
-      'utf-8'
-    )
+    await fs.writeFile(this.stateFilePath, JSON.stringify(data, null, 2), 'utf-8')
   }
 
   /**

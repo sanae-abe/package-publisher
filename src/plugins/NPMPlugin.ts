@@ -205,11 +205,9 @@ export class NPMPlugin implements RegistryPlugin {
 
   async dryRun(): Promise<DryRunResult> {
     try {
-      const result = await this.executor.execSafe(
-        'npm',
-        ['publish', '--dry-run'],
-        { cwd: this.projectPath }
-      )
+      const result = await this.executor.execSafe('npm', ['publish', '--dry-run'], {
+        cwd: this.projectPath
+      })
 
       // Parse output for package size estimation
       const output = result.stdout + result.stderr
@@ -270,10 +268,7 @@ export class NPMPlugin implements RegistryPlugin {
           maxAttempts: 3,
           onRetry: async (attempt, error) => {
             // OTP required detection
-            if (
-              error.message?.includes('OTP') ||
-              error.message?.includes('two-factor')
-            ) {
+            if (error.message?.includes('OTP') || error.message?.includes('two-factor')) {
               throw ErrorFactory.create(
                 'OTP_REQUIRED',
                 this.name,
@@ -375,11 +370,9 @@ export class NPMPlugin implements RegistryPlugin {
 
       // After 72 hours or if publish time unknown: use npm deprecate
       const deprecateMessage = `This version has been deprecated. Please use a newer version.`
-      await this.executor.execSafe(
-        'npm',
-        ['deprecate', fullName, deprecateMessage],
-        { cwd: this.projectPath }
-      )
+      await this.executor.execSafe('npm', ['deprecate', fullName, deprecateMessage], {
+        cwd: this.projectPath
+      })
 
       return {
         success: true,

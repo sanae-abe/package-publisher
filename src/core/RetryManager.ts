@@ -9,10 +9,7 @@ export class RetryManager {
   private static readonly DEFAULT_MAX_DELAY = 30000 // 30 seconds
   private static readonly DEFAULT_BACKOFF_MULTIPLIER = 2
 
-  async retry<T>(
-    fn: () => Promise<T>,
-    options: RetryOptions = {}
-  ): Promise<T> {
+  async retry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
     const {
       maxAttempts = RetryManager.DEFAULT_MAX_ATTEMPTS,
       initialDelay = RetryManager.DEFAULT_INITIAL_DELAY,

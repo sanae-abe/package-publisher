@@ -49,7 +49,9 @@ program
 
       if (result.success) {
         console.log(chalk.green.bold('\n✅ 成功！'))
-        console.log(chalk.green(`パッケージ ${result.packageName}@${result.version} を公開しました`))
+        console.log(
+          chalk.green(`パッケージ ${result.packageName}@${result.version} を公開しました`)
+        )
         if (result.verificationUrl) {
           console.log(chalk.blue(`URL: ${result.verificationUrl}`))
         }

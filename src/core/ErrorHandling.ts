@@ -24,7 +24,10 @@ export const ErrorCodes = {
   REGISTRY_NOT_DETECTED: {
     message: 'レジストリが検出されませんでした',
     recoverable: false,
-    actions: ['プロジェクトディレクトリを確認してください', '対応するパッケージマネージャーがインストールされているか確認してください']
+    actions: [
+      'プロジェクトディレクトリを確認してください',
+      '対応するパッケージマネージャーがインストールされているか確認してください'
+    ]
   },
 
   // Validation errors
@@ -48,7 +51,11 @@ export const ErrorCodes = {
   SECRETS_DETECTED: {
     message: 'ハードコードされた機密情報が検出されました',
     recoverable: true,
-    actions: ['検出されたファイルを確認してください', '環境変数の使用を推奨します', '.gitignoreに追加してください']
+    actions: [
+      '検出されたファイルを確認してください',
+      '環境変数の使用を推奨します',
+      '.gitignoreに追加してください'
+    ]
   },
   TOKEN_MISSING: {
     message: '認証トークンが設定されていません',
@@ -60,7 +67,11 @@ export const ErrorCodes = {
   PUBLISH_FAILED: {
     message: '公開処理に失敗しました',
     recoverable: true,
-    actions: ['エラーメッセージを確認してください', 'ネットワーク接続を確認してください', 'レジストリのステータスを確認してください']
+    actions: [
+      'エラーメッセージを確認してください',
+      'ネットワーク接続を確認してください',
+      'レジストリのステータスを確認してください'
+    ]
   },
   VERSION_CONFLICT: {
     message: '同じバージョンが既に公開されています',
@@ -89,7 +100,10 @@ export const ErrorCodes = {
   VERIFICATION_FAILED: {
     message: '公開の検証に失敗しました',
     recoverable: true,
-    actions: ['レジストリのWebサイトで手動確認してください', 'しばらく待ってから再試行してください（反映に時間がかかる場合があります）']
+    actions: [
+      'レジストリのWebサイトで手動確認してください',
+      'しばらく待ってから再試行してください（反映に時間がかかる場合があります）'
+    ]
   },
 
   // State errors
@@ -103,7 +117,10 @@ export const ErrorCodes = {
   ROLLBACK_FAILED: {
     message: 'ロールバックに失敗しました',
     recoverable: false,
-    actions: ['レジストリのドキュメントを確認してください', '手動でロールバックが必要な場合があります']
+    actions: [
+      'レジストリのドキュメントを確認してください',
+      '手動でロールバックが必要な場合があります'
+    ]
   },
   ROLLBACK_NOT_SUPPORTED: {
     message: 'このレジストリはロールバックをサポートしていません',
@@ -127,9 +144,7 @@ export class ErrorFactory {
 
     // Format suggested actions with arguments
     const actions = errorDef.actions.map((action) => {
-      return actionArgs.length > 0
-        ? this.formatAction(action, actionArgs)
-        : action
+      return actionArgs.length > 0 ? this.formatAction(action, actionArgs) : action
     })
 
     return new PublishError(

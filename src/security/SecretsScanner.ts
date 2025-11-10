@@ -75,10 +75,7 @@ export class SecretsScanner {
   /**
    * Scan a project for hardcoded secrets
    */
-  async scanProject(
-    projectPath: string,
-    allowedFiles: string[] = []
-  ): Promise<ScanReport> {
+  async scanProject(projectPath: string, _allowedFiles: string[] = []): Promise<ScanReport> {
     const findings: SecretFinding[] = []
     let scannedFiles = 0
     const skippedFiles: string[] = []
@@ -180,9 +177,7 @@ export class SecretsScanner {
    * Check if file should be ignored
    */
   private shouldIgnore(filePath: string): boolean {
-    return SecretsScanner.DEFAULT_IGNORE_PATTERNS.some((pattern) =>
-      pattern.test(filePath)
-    )
+    return SecretsScanner.DEFAULT_IGNORE_PATTERNS.some((pattern) => pattern.test(filePath))
   }
 
   /**
@@ -193,10 +188,7 @@ export class SecretsScanner {
       return `✅ シークレットスキャン完了: 問題なし（${report.scannedFiles}ファイルをスキャン）`
     }
 
-    const lines: string[] = [
-      `⚠️  ${report.findings.length}件の潜在的なシークレットを検出:`,
-      ''
-    ]
+    const lines: string[] = [`⚠️  ${report.findings.length}件の潜在的なシークレットを検出:`, '']
 
     // Group findings by severity
     const bySeverity: Record<string, SecretFinding[]> = {
@@ -218,9 +210,7 @@ export class SecretsScanner {
       lines.push(`${emoji} ${severity.toUpperCase()} (${findings.length}件):`)
 
       for (const finding of findings) {
-        lines.push(
-          `  - ${finding.file}:${finding.line} [${finding.type}] ${finding.matched}`
-        )
+        lines.push(`  - ${finding.file}:${finding.line} [${finding.type}] ${finding.matched}`)
       }
 
       lines.push('')
