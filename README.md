@@ -1,5 +1,7 @@
 # 📦 package-publisher
 
+[English](./README.md) | [日本語](./README.ja.md)
+
 > Multi-registry package publishing assistant for Homebrew, crates.io, npm, PyPI
 
 ![Tests](https://img.shields.io/badge/tests-367%20passed-success)
@@ -7,7 +9,7 @@
 ![TypeScript](https://img.shields.io/badge/typescript-strict-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 
-**package-publisher** は、複数のパッケージレジストリへの公開作業を安全かつ効率的に支援するClaude Code agentです。
+**package-publisher** is a Claude Code agent that supports safe and efficient package publishing across multiple package registries.
 
 ## ✨ Features
 
@@ -44,73 +46,73 @@
 
 ### 🎛️ Advanced Features
 
-- **Configuration System**: YAML設定ファイル (.publish-config.yaml)
-  - 優先度管理 (CLI > Env > Project > Global > Default)
-  - 環境変数展開（セキュリティ制限付き）
-  - 詳細なバリデーションエラーメッセージ
+- **Configuration System**: YAML configuration file (.publish-config.yaml)
+  - Priority management (CLI > Env > Project > Global > Default)
+  - Environment variable expansion (with security restrictions)
+  - Detailed validation error messages
 
-- **Batch Publishing**: 複数レジストリへの一括公開
-  - 並列/直列実行の選択可能
-  - エラー時の継続/停止設定
-  - 同時実行数の制限（デフォルト3）
+- **Batch Publishing**: Publish to multiple registries at once
+  - Parallel or sequential execution options
+  - Continue or stop on error
+  - Concurrency limit control (default: 3)
 
-- **Hooks System**: カスタマイズ可能なフック
-  - 4つのフックフェーズ（preBuild, prePublish, postPublish, onError）
-  - 環境変数展開、コマンドホワイトリスト検証
-  - タイムアウト制御（デフォルト300秒）
+- **Hooks System**: Customizable lifecycle hooks
+  - 4 hook phases (preBuild, prePublish, postPublish, onError)
+  - Environment variable expansion, command whitelist validation
+  - Timeout control (default: 300 seconds)
 
-- **Notifications**: 公開結果の通知
-  - Slack Webhook統合（リッチメッセージ対応）
-  - Email通知（SendGrid API経由）
-  - プラガブル設計で拡張可能
+- **Notifications**: Publishing result notifications
+  - Slack Webhook integration (rich message support)
+  - Email notifications (via SendGrid API)
+  - Pluggable design for extensibility
 
-- **Plugin System**: カスタムレジストリ対応
-  - PublishPlugin インターフェース
-  - 動的プラグインロード（npm/ローカル）
-  - サンプルプラグイン・詳細ドキュメント完備
+- **Plugin System**: Custom registry support
+  - PublishPlugin interface
+  - Dynamic plugin loading (npm/local)
+  - Sample plugins and comprehensive documentation
 
-- **Analytics & Reporting**: 公開統計
-  - レジストリ別成功率追跡
-  - Markdown/JSON形式レポート
-  - CLI統合（`stats`, `report` コマンド）
+- **Analytics & Reporting**: Publishing statistics
+  - Track success rates by registry
+  - Markdown/JSON format reports
+  - CLI integration (`stats`, `report` commands)
 
-**品質指標**:
-- ✅ **367 テスト** (15 テストスイート、全合格)
-- ✅ **89%+ テストカバレッジ**
-- ✅ **TypeScript strict mode** 完全準拠
-- ✅ **ESLint** エラー・警告 0件
+**Quality Metrics**:
+- ✅ **367 tests** (15 test suites, all passing)
+- ✅ **89%+ test coverage**
+- ✅ **TypeScript strict mode** fully compliant
+- ✅ **ESLint** zero errors and warnings
 
 ## 📚 Use Cases
 
-### モノレポでの複数パッケージ公開
-- 一度の操作で複数レジストリ（npm, PyPI, crates.io）に公開
-- 統一された検証プロセスでセキュリティを担保
-- バッチ公開機能で効率的なリリース
+### Multi-Package Publishing in Monorepos
+- Publish to multiple registries (npm, PyPI, crates.io) in a single operation
+- Ensure security with unified validation process
+- Efficient releases with batch publishing capabilities
 
-### CI/CDパイプラインでの自動公開
-- タグプッシュで自動的に本番公開
-- Slack/Email通知で即座にチーム全体に共有
-- Hooksシステムで公開前後の処理をカスタマイズ
+### Automated Publishing in CI/CD Pipelines
+- Automatically publish to production on tag push
+- Instant team-wide notification via Slack/Email
+- Customize pre/post-publish processes with Hooks system
 
-### セキュリティ重視の公開フロー
-- Secrets Scanner自動実行で機密情報の混入を防止
-- 2FA/OTP対応でアカウント保護
-- トークンマスキングでログの安全性を確保
+### Security-Focused Publishing Workflow
+- Prevent secrets leakage with automated Secrets Scanner
+- Account protection with 2FA/OTP support
+- Ensure log safety with token masking
 
-### エンタープライズレベルの運用
-- YAML設定ファイルでチーム全体の設定を統一
-- Analytics機能で公開成功率を追跡
-- Plugin Systemでカスタムレジストリにも対応
+### Enterprise-Level Operations
+- Unify team-wide configuration with YAML config files
+- Track publishing success rates with Analytics
+- Support custom registries with Plugin System
 
 ## 🚀 Quick Start
 
 ### Installation
 
-**システム要件**:
-- Node.js 18.x以上
-- npm 9.x以上
+**System Requirements**:
+- Node.js 18.x or higher
+- npm 9.x or higher
 
-**開発版のセットアップ**:
+**Development Setup**:
 ```bash
 git clone https://github.com/sanae-abe/package-publisher
 cd package-publisher
@@ -118,12 +120,12 @@ npm install
 npm run build
 ```
 
-**グローバルインストール**（npm公開後）:
+**Global Installation** (after npm publication):
 ```bash
 npm install -g package-publisher
 ```
 
-**npx使用**（インストール不要）:
+**Using npx** (no installation required):
 ```bash
 npx package-publisher publish
 ```
@@ -283,89 +285,89 @@ npm run format
 
 ## 📖 Documentation
 
-- [Agent Integration Guide](./docs/AGENT_INTEGRATION.md) - Claude Code使用方法、トラブルシューティング
-- [Plugin Development Guide](./docs/PLUGIN_DEVELOPMENT.md) - カスタムプラグイン開発ガイド
-- [CI/CD Integration Guide](./docs/CI_CD_INTEGRATION.md) - GitHub Actions、GitLab CI、CircleCI統合
+- [Agent Integration Guide](./docs/AGENT_INTEGRATION.md) - Claude Code usage and troubleshooting
+- [Plugin Development Guide](./docs/PLUGIN_DEVELOPMENT.md) - Custom plugin development guide
+- [CI/CD Integration Guide](./docs/CI_CD_INTEGRATION.md) - GitHub Actions, GitLab CI, CircleCI integration
 
 ## 🔧 Troubleshooting
 
-### よくある問題と解決方法
+### Common Issues and Solutions
 
-#### 認証エラー (AUTHENTICATION_FAILED)
-**症状**: `Authentication failed for registry` エラー
+#### Authentication Errors (AUTHENTICATION_FAILED)
+**Symptoms**: `Authentication failed for registry` error
 
-**解決方法**:
+**Solutions**:
 ```bash
-# トークンの確認
-echo $NPM_TOKEN  # npm の場合
-echo $CARGO_REGISTRY_TOKEN  # crates.io の場合
+# Check token
+echo $NPM_TOKEN  # for npm
+echo $CARGO_REGISTRY_TOKEN  # for crates.io
 
-# トークンの再設定
+# Reset token
 export NPM_TOKEN="your-token-here"
 
-# 2FA/OTPが必要な場合
+# If 2FA/OTP is required
 package-publisher publish --registry npm --otp 123456
 ```
 
-#### シークレットスキャナーによるブロック
-**症状**: `Secrets detected in package` エラー
+#### Blocked by Secrets Scanner
+**Symptoms**: `Secrets detected in package` error
 
-**解決方法**:
+**Solutions**:
 ```bash
-# .gitignore に機密ファイルを追加
+# Add sensitive files to .gitignore
 echo ".env" >> .gitignore
 echo "credentials.json" >> .gitignore
 
-# コミットから機密情報を削除
+# Remove sensitive information from commits
 git filter-branch --force --index-filter \
   'git rm --cached --ignore-unmatch path/to/secret/file' \
   --prune-empty --tag-name-filter cat -- --all
 ```
 
-#### ネットワークエラー
-**症状**: タイムアウトや接続エラー
+#### Network Errors
+**Symptoms**: Timeout or connection errors
 
-**解決方法**:
+**Solutions**:
 ```bash
-# リトライ回数を増やす
+# Increase retry count
 package-publisher publish --max-retries 5
 
-# プロキシ設定（必要な場合）
+# Configure proxy (if needed)
 export HTTP_PROXY=http://proxy.example.com:8080
 export HTTPS_PROXY=http://proxy.example.com:8080
 ```
 
-#### テスト失敗
-**症状**: 公開前のテストが失敗
+#### Test Failures
+**Symptoms**: Pre-publish tests fail
 
-**解決方法**:
+**Solutions**:
 ```bash
-# ローカルでテストを実行
+# Run tests locally
 npm test
 
-# テストをスキップ（非推奨）
+# Skip tests (not recommended)
 package-publisher publish --skip-verification
 ```
 
-### ログの確認
+### Checking Logs
 
 ```bash
-# 詳細ログの出力
+# Verbose logging
 package-publisher publish --verbose
 
-# デバッグモード
+# Debug mode
 DEBUG=* package-publisher publish
 ```
 
-### サポート
+### Support
 
-問題が解決しない場合は、以下をご利用ください：
-- [GitHub Issues](https://github.com/sanae-abe/package-publisher/issues) - バグ報告・機能リクエスト
-- [GitHub Discussions](https://github.com/sanae-abe/package-publisher/discussions) - 質問・相談
+If the issue persists, please use:
+- [GitHub Issues](https://github.com/sanae-abe/package-publisher/issues) - Bug reports and feature requests
+- [GitHub Discussions](https://github.com/sanae-abe/package-publisher/discussions) - Questions and discussions
 
 ## 🤝 Contributing
 
-Contributions are welcome! このプロジェクトへの貢献に興味がある方は、GitHubのIssuesまたはPull Requestsをご利用ください。
+Contributions are welcome! If you're interested in contributing to this project, please use GitHub Issues or Pull Requests.
 
 ## 📄 License
 
