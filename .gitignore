@@ -42,3 +42,6 @@ temp/
 
 # State files
 .publish-state.json
+
+# Project management
+todos.md
