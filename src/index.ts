@@ -5,6 +5,7 @@
 
 // Core exports
 export { PackagePublisher } from './core/PackagePublisher'
+export { BatchPublisher } from './core/BatchPublisher'
 export { PublishStateMachine } from './core/PublishStateMachine'
 export { ErrorFactory, PublishError, ErrorCodes } from './core/ErrorHandling'
 export { RetryManager } from './core/RetryManager'
@@ -41,5 +42,7 @@ export type {
   PublishStateData,
   RetryOptions,
   PublishReport,
-  PackageMetadata
+  PackageMetadata,
+  BatchPublishOptions,
+  BatchPublishResult
 } from './core/interfaces'
