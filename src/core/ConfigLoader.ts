@@ -15,7 +15,8 @@ import {
   ConfigValidationResult,
   ConfigValidationError,
   ConfigValidationWarning,
-  DEFAULT_CONFIG
+  DEFAULT_CONFIG,
+  AllowedCommandConfig
 } from './PublishConfig'
 
 /**
@@ -167,13 +168,13 @@ export class ConfigLoader {
   /**
    * Deep merge two objects
    */
-  private static deepMerge(target: any, source: any): void {
+  private static deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): void {
     for (const key in source) {
       if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
         if (!target[key]) {
           target[key] = {}
         }
-        this.deepMerge(target[key], source[key])
+        this.deepMerge(target[key] as Record<string, unknown>, source[key] as Record<string, unknown>)
       } else {
         target[key] = source[key]
       }
@@ -209,7 +210,7 @@ export class ConfigLoader {
    * Recursively expand environment variables in object
    */
   private static recursiveExpandEnvVars(
-    obj: any,
+    obj: unknown,
     env: Record<string, string | undefined>,
     allowedPrefixes?: string[],
     forbiddenPatterns?: RegExp[]
@@ -256,10 +257,11 @@ export class ConfigLoader {
     }
 
     if (obj && typeof obj === 'object') {
-      const result: any = {}
-      for (const key in obj) {
+      const result: Record<string, unknown> = {}
+      const objRecord = obj as Record<string, unknown>
+      for (const key in objRecord) {
         result[key] = this.recursiveExpandEnvVars(
-          obj[key],
+          objRecord[key],
           env,
           allowedPrefixes,
           forbiddenPatterns
@@ -330,7 +332,7 @@ export class ConfigLoader {
    * Validate registry configurations
    */
   private static validateRegistries(
-    registries: any,
+    registries: Partial<PublishConfig['registries']>,
     errors: ConfigValidationError[],
     _warnings: ConfigValidationWarning[]
   ): void {
@@ -380,16 +382,16 @@ export class ConfigLoader {
    * Validate security settings
    */
   private static validateSecurity(
-    security: any,
+    security: Partial<PublishConfig['security']>,
     errors: ConfigValidationError[],
     _warnings: ConfigValidationWarning[]
   ): void {
     // Validate allowedCommands
-    if (security.allowedCommands) {
+    if (security?.allowedCommands) {
       for (const [cmd, config] of Object.entries(security.allowedCommands)) {
         if (typeof config !== 'object' || !config) continue
 
-        const cmdConfig = config as any
+        const cmdConfig: AllowedCommandConfig = config
         if (!cmdConfig.executable) {
           errors.push({
             field: `security.allowedCommands.${cmd}.executable`,
@@ -411,7 +413,7 @@ export class ConfigLoader {
     }
 
     // Validate ignorePatterns
-    if (security.secretsScanning?.ignorePatterns) {
+    if (security?.secretsScanning?.ignorePatterns) {
       for (let i = 0; i < security.secretsScanning.ignorePatterns.length; i++) {
         const pattern = security.secretsScanning.ignorePatterns[i]
         if (!pattern.pathPrefix) {
@@ -430,16 +432,15 @@ export class ConfigLoader {
    * Validate hooks configuration
    */
   private static validateHooks(
-    hooks: any,
+    hooks: Partial<PublishConfig['hooks']>,
     errors: ConfigValidationError[],
     _warnings: ConfigValidationWarning[]
   ): void {
-    const hookTypes = ['preBuild', 'prePublish', 'postPublish', 'onError']
+    const hookTypes = ['preBuild', 'prePublish', 'postPublish', 'onError'] as const
 
     for (const hookType of hookTypes) {
-      if (!hooks[hookType]) continue
-
-      const hookCommands = hooks[hookType]
+      const hookCommands = hooks?.[hookType]
+      if (!hookCommands) continue
       if (!Array.isArray(hookCommands)) {
         errors.push({
           field: `hooks.${hookType}`,
@@ -477,11 +478,11 @@ export class ConfigLoader {
    * Validate publish options
    */
   private static validatePublishOptions(
-    publish: any,
+    publish: Partial<PublishConfig['publish']>,
     errors: ConfigValidationError[],
     _warnings: ConfigValidationWarning[]
   ): void {
-    if (publish.dryRun) {
+    if (publish?.dryRun) {
       const validValues = ['first', 'always', 'never']
       if (!validValues.includes(publish.dryRun)) {
         errors.push({
@@ -498,10 +499,12 @@ export class ConfigLoader {
    * Apply custom validation rules
    */
   private static applyCustomValidationRules(
-    config: any,
+    config: Partial<PublishConfig>,
     errors: ConfigValidationError[],
     warnings: ConfigValidationWarning[]
   ): void {
+    if (!config.validation?.rules) return
+
     for (const rule of config.validation.rules) {
       const fieldValue = this.getFieldValue(config, rule.field)
 
@@ -534,13 +537,13 @@ export class ConfigLoader {
   /**
    * Get field value from nested object path
    */
-  private static getFieldValue(obj: any, fieldPath: string): any {
+  private static getFieldValue(obj: Record<string, unknown>, fieldPath: string): unknown {
     const parts = fieldPath.split('.')
-    let value = obj
+    let value: unknown = obj
 
     for (const part of parts) {
       if (value && typeof value === 'object') {
-        value = value[part]
+        value = (value as Record<string, unknown>)[part]
       } else {
         return undefined
       }
