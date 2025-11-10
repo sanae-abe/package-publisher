@@ -239,3 +239,38 @@ export interface PackageMetadata {
   keywords?: string[]
   [key: string]: any // Registry-specific fields
 }
+
+// ============================================================================
+// Batch Publishing
+// ============================================================================
+
+export interface BatchPublishOptions {
+  /** Execute publishes sequentially instead of in parallel (default: false) */
+  sequential?: boolean
+
+  /** Continue publishing to remaining registries even if one fails (default: false) */
+  continueOnError?: boolean
+
+  /** Maximum number of concurrent publishes (default: 3, only applies when sequential=false) */
+  maxConcurrency?: number
+
+  /** Individual publish options to apply to all registries */
+  publishOptions?: PublishOptions
+}
+
+export interface BatchPublishResult {
+  /** Registries that were successfully published to */
+  succeeded: string[]
+
+  /** Registries that failed to publish, with their errors */
+  failed: Map<string, Error>
+
+  /** Registries that were skipped due to earlier failures */
+  skipped: string[]
+
+  /** Overall success status (true if all succeeded) */
+  success: boolean
+
+  /** Detailed results for each registry */
+  results: Map<string, PublishReport>
+}
