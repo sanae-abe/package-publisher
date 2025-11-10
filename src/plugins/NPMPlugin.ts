@@ -14,7 +14,9 @@ import { ErrorFactory } from '../core/ErrorHandling'
 import { RetryManager } from '../core/RetryManager'
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import fetch from 'node-fetch'
+
+// Use global fetch (available in Node.js 18+)
+declare const fetch: typeof globalThis.fetch
 
 interface PackageJson {
   name?: string
@@ -68,9 +70,9 @@ export class NPMPlugin implements RegistryPlugin {
       // Validate required fields
       const requiredFields: (keyof PackageJson)[] = ['name', 'version']
       for (const field of requiredFields) {
-        if (!this.packageJson[field]) {
+        if (!this.packageJson![field]) {
           errors.push({
-            field,
+            field: field as string,
             message: `${field}は必須フィールドです`,
             severity: 'error'
           })
@@ -78,24 +80,24 @@ export class NPMPlugin implements RegistryPlugin {
       }
 
       // Validate package name (npm naming rules)
-      if (this.packageJson.name) {
-        const nameErrors = this.validatePackageName(this.packageJson.name)
+      if (this.packageJson!.name) {
+        const nameErrors = this.validatePackageName(this.packageJson!.name)
         errors.push(...nameErrors)
       }
 
       // Validate version (SemVer)
-      if (this.packageJson.version) {
-        if (!this.isValidSemVer(this.packageJson.version)) {
+      if (this.packageJson!.version) {
+        if (!this.isValidSemVer(this.packageJson!.version)) {
           errors.push({
             field: 'version',
-            message: `無効なSemVer形式: ${this.packageJson.version}`,
+            message: `無効なSemVer形式: ${this.packageJson!.version}`,
             severity: 'error'
           })
         }
       }
 
       // Validate license
-      if (!this.packageJson.license) {
+      if (!this.packageJson!.license) {
         warnings.push({
           field: 'license',
           message: 'ライセンスフィールドの指定を推奨します',
@@ -133,7 +135,7 @@ export class NPMPlugin implements RegistryPlugin {
       }
 
       // Run build script if exists
-      if (this.packageJson.scripts?.build) {
+      if (this.packageJson!.scripts?.build) {
         try {
           await this.executor.execSafe('npm', ['run', 'build'], {
             cwd: this.projectPath
@@ -148,7 +150,7 @@ export class NPMPlugin implements RegistryPlugin {
       }
 
       // Run test script if exists
-      if (this.packageJson.scripts?.test) {
+      if (this.packageJson!.scripts?.test) {
         try {
           await this.executor.execSafe('npm', ['test'], {
             cwd: this.projectPath
@@ -163,7 +165,7 @@ export class NPMPlugin implements RegistryPlugin {
       }
 
       // Run lint script if exists
-      if (this.packageJson.scripts?.lint) {
+      if (this.packageJson!.scripts?.lint) {
         try {
           await this.executor.execSafe('npm', ['run', 'lint'], {
             cwd: this.projectPath
@@ -188,8 +190,8 @@ export class NPMPlugin implements RegistryPlugin {
         errors,
         warnings,
         metadata: {
-          packageName: this.packageJson.name,
-          version: this.packageJson.version
+          packageName: this.packageJson!.name,
+          version: this.packageJson!.version
         }
       }
     } catch (error) {
@@ -282,11 +284,11 @@ export class NPMPlugin implements RegistryPlugin {
         }
       )
 
-      const packageUrl = `https://www.npmjs.com/package/${this.packageJson?.name}`
+      const packageUrl = `https://www.npmjs.com/package/${this.packageJson!.name}`
 
       return {
         success: true,
-        version: this.packageJson?.version,
+        version: this.packageJson!.version,
         packageUrl,
         output: result.stdout
       }
@@ -302,8 +304,8 @@ export class NPMPlugin implements RegistryPlugin {
     try {
       await this.loadPackageJson()
 
-      const packageName = this.packageJson?.name
-      const expectedVersion = this.packageJson?.version
+      const packageName = this.packageJson!.name
+      const expectedVersion = this.packageJson!.version
 
       // Verify on npmjs.com
       const response = await fetch(`https://registry.npmjs.org/${packageName}`)
@@ -349,11 +351,11 @@ export class NPMPlugin implements RegistryPlugin {
     try {
       await this.loadPackageJson()
 
-      const packageName = this.packageJson?.name
+      const packageName = this.packageJson!.name!
       const fullName = `${packageName}@${version}`
 
       // Check if version was published within 72 hours
-      const publishTime = await this.getPublishTime(packageName!, version)
+      const publishTime = await this.getPublishTime(packageName, version)
 
       if (publishTime) {
         const hoursSincePublish = (Date.now() - publishTime.getTime()) / (1000 * 60 * 60)

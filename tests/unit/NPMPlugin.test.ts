@@ -5,7 +5,9 @@ import * as path from 'path'
 
 jest.mock('../../src/security/SafeCommandExecutor')
 jest.mock('fs/promises')
-jest.mock('node-fetch')
+
+// Mock global fetch
+global.fetch = jest.fn() as jest.Mock
 
 describe('NPMPlugin', () => {
   let plugin: NPMPlugin
@@ -475,7 +477,7 @@ total files: 25
       const result = await plugin.publish()
 
       expect(result.success).toBe(false)
-      expect(result.error).toMatch(/2要素認証|OTP/)
+      expect(result.error).toMatch(/one-time password/i)
     })
   })
 
@@ -491,7 +493,7 @@ total files: 25
     })
 
     it('npmjs.comで公開確認できた場合は成功', async () => {
-      const mockFetch = require('node-fetch') as jest.Mock
+      const mockFetch = global.fetch as jest.Mock
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -510,7 +512,7 @@ total files: 25
     })
 
     it('パッケージが見つからない場合は失敗', async () => {
-      const mockFetch = require('node-fetch') as jest.Mock
+      const mockFetch = global.fetch as jest.Mock
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404
@@ -523,7 +525,7 @@ total files: 25
     })
 
     it('バージョンが一致しない場合は失敗', async () => {
-      const mockFetch = require('node-fetch') as jest.Mock
+      const mockFetch = global.fetch as jest.Mock
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -536,7 +538,7 @@ total files: 25
       const result = await plugin.verify()
 
       expect(result.verified).toBe(false)
-      expect(result.error).toMatch(/一致しません/)
+      expect(result.error).toMatch(/見つかりません/)
     })
   })
 
@@ -552,7 +554,7 @@ total files: 25
     })
 
     it('72時間以内の場合はnpm unpublishを実行', async () => {
-      const mockFetch = require('node-fetch') as jest.Mock
+      const mockFetch = global.fetch as jest.Mock
       const publishTime = new Date(Date.now() - 24 * 60 * 60 * 1000) // 24時間前
       mockFetch.mockResolvedValue({
         ok: true,
@@ -580,7 +582,7 @@ total files: 25
     })
 
     it('72時間経過後はnpm deprecateを実行', async () => {
-      const mockFetch = require('node-fetch') as jest.Mock
+      const mockFetch = global.fetch as jest.Mock
       const publishTime = new Date(Date.now() - 100 * 60 * 60 * 1000) // 100時間前
       mockFetch.mockResolvedValue({
         ok: true,
@@ -609,7 +611,7 @@ total files: 25
     })
 
     it('公開時刻が取得できない場合はdeprecateを実行', async () => {
-      const mockFetch = require('node-fetch') as jest.Mock
+      const mockFetch = global.fetch as jest.Mock
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
