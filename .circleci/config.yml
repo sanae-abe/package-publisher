@@ -1,0 +1,281 @@
+# CircleCI Configuration - Package Publisher Integration Example
+version: 2.1
+
+# Orbs（再利用可能なパッケージ）
+orbs:
+  node: circleci/node@5.1
+  python: circleci/python@2.1
+  # rust: circleci/rust@1.6  # オプション
+
+# 実行環境定義
+executors:
+  node-executor:
+    docker:
+      - image: cimg/node:20.10
+    working_directory: ~/project
+
+  multi-language-executor:
+    docker:
+      - image: cimg/base:2023.12
+    working_directory: ~/project
+
+# 再利用可能なコマンド
+commands:
+  install-package-publisher:
+    description: "Install package-publisher CLI"
+    steps:
+      - run:
+          name: Install package-publisher
+          command: npm install -g package-publisher
+
+  verify-publication:
+    description: "Verify package publication"
+    parameters:
+      package_name:
+        type: string
+        default: ""
+      registry:
+        type: string
+        default: "npm"
+    steps:
+      - run:
+          name: Verify << parameters.registry >> publication
+          command: |
+            echo "Verifying << parameters.package_name >> on << parameters.registry >>..."
+            sleep 10
+            case << parameters.registry >> in
+              npm)
+                npm view << parameters.package_name >> || echo "Verification failed"
+                ;;
+              pypi)
+                pip index versions << parameters.package_name >> || echo "Verification failed"
+                ;;
+              crates)
+                cargo search << parameters.package_name >> || echo "Verification failed"
+                ;;
+            esac
+
+# ジョブ定義
+jobs:
+  # テストジョブ
+  test:
+    executor: node-executor
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          name: Run linter
+          command: npm run lint
+      - run:
+          name: Run tests
+          command: npm test
+      - run:
+          name: Run coverage
+          command: npm run test:coverage
+      - store_test_results:
+          path: ./coverage
+      - store_artifacts:
+          path: ./coverage
+          destination: coverage
+
+  # ビルドジョブ
+  build:
+    executor: node-executor
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          name: Build package
+          command: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist
+            - package.json
+            - README.md
+
+  # npm公開ジョブ
+  publish-npm:
+    executor: node-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - node/install-packages:
+          pkg-manager: npm
+      - install-package-publisher
+      - run:
+          name: Publish to npm
+          command: |
+            package-publisher publish \
+              --registry npm \
+              --non-interactive \
+              --tag latest \
+              --access public
+      - verify-publication:
+          package_name: ${CIRCLE_PROJECT_REPONAME}
+          registry: npm
+
+  # マルチレジストリ公開ジョブ
+  publish-multiregistry:
+    executor: multi-language-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      # Node.js
+      - run:
+          name: Install Node.js
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      # Python
+      - run:
+          name: Install Python
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y python3 python3-pip
+            pip3 install build twine
+      # Rust (オプション)
+      # - run:
+      #     name: Install Rust
+      #     command: |
+      #       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      #       source $HOME/.cargo/env
+      - install-package-publisher
+      - run:
+          name: Publish to multiple registries
+          command: |
+            package-publisher publish \
+              --registries npm,pypi \
+              --non-interactive \
+              --continue-on-error \
+              --sequential \
+              --max-concurrency 2
+      - run:
+          name: Create publication summary
+          command: |
+            echo "Publication Summary:" > publication-summary.txt
+            echo "- npm: https://www.npmjs.com/package/${CIRCLE_PROJECT_REPONAME}" >> publication-summary.txt
+            echo "- PyPI: https://pypi.org/project/${CIRCLE_PROJECT_REPONAME}" >> publication-summary.txt
+      - store_artifacts:
+          path: publication-summary.txt
+          destination: publication-summary
+
+# ワークフロー定義
+workflows:
+  version: 2
+
+  # テスト・ビルド（すべてのブランチ・タグ）
+  test-and-build:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /.*/
+      - build:
+          requires:
+            - test
+          filters:
+            tags:
+              only: /.*/
+
+  # npm公開（タグpush時のみ）
+  publish-npm-workflow:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+            branches:
+              ignore: /.*/
+      - build:
+          requires:
+            - test
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+            branches:
+              ignore: /.*/
+      - publish-npm:
+          # Context使用（Secrets管理）
+          context: publishing
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+            branches:
+              ignore: /.*/
+
+  # マルチレジストリ公開（手動承認が必要）
+  publish-multiregistry-workflow:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+            branches:
+              ignore: /.*/
+      - build:
+          requires:
+            - test
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+            branches:
+              ignore: /.*/
+      # 手動承認ステップ
+      - hold-for-approval:
+          type: approval
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+            branches:
+              ignore: /.*/
+      - publish-multiregistry:
+          context: publishing-multi
+          requires:
+            - hold-for-approval
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+            branches:
+              ignore: /.*/
+
+# =============================================================================
+# CircleCI Context設定（Organization Settings > Contexts）
+# =============================================================================
+#
+# Context: publishing
+# ├─ NPM_TOKEN (npm access token)
+# └─ NODE_AUTH_TOKEN (npmと同じ値)
+#
+# Context: publishing-multi
+# ├─ NPM_TOKEN (npm access token)
+# ├─ PYPI_TOKEN (PyPI API token)
+# ├─ CARGO_REGISTRY_TOKEN (crates.io token)
+# ├─ TWINE_USERNAME (__token__)
+# └─ TWINE_PASSWORD (PYPI_TOKENと同じ値)
+#
+# セキュリティベストプラクティス:
+#
+# 1. Context使用
+#    - Secretsをプロジェクトごとではなく組織レベルで管理
+#    - 再利用可能で安全
+#
+# 2. 手動承認
+#    - 本番公開前に承認ステップを追加
+#    - type: approval を使用
+#
+# 3. フィルタリング
+#    - タグのみで実行
+#    - ブランチからは公開しない
+#
+# 4. 最小権限
+#    - 各トークンは最小限の権限のみ
+#    - Automation型を推奨

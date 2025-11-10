@@ -1,10 +1,11 @@
-import { RegistryPlugin, PublishOptions, PublishReport, VerificationResult } from './interfaces'
+import { RegistryPlugin, PublishOptions, PublishReport, VerificationResult, HookContext } from './interfaces'
 import { PublishStateMachine } from './PublishStateMachine'
 import { SecureTokenManager } from '../security/SecureTokenManager'
 import { SecretsScanner } from '../security/SecretsScanner'
 import { ErrorFactory } from './ErrorHandling'
 import { ConfigLoader } from './ConfigLoader'
 import { PublishConfig } from './PublishConfig'
+import { HookExecutor } from './HookExecutor'
 import * as readline from 'readline'
 
 /**
@@ -15,12 +16,14 @@ export class PackagePublisher {
   private stateMachine: PublishStateMachine
   private tokenManager: SecureTokenManager
   private secretsScanner: SecretsScanner
+  private hookExecutor: HookExecutor
   private config: PublishConfig | null = null
 
   constructor(private projectPath: string) {
     this.stateMachine = new PublishStateMachine(projectPath)
     this.tokenManager = new SecureTokenManager()
     this.secretsScanner = new SecretsScanner()
+    this.hookExecutor = new HookExecutor(projectPath)
   }
 
   /**
@@ -133,7 +136,31 @@ export class PackagePublisher {
       console.log(`\n📦 レジストリ検出: ${registryName}`)
       console.log(`検出されたレジストリ: ${detectedRegistries.join(', ')}\n`)
 
-      // 3. Security scan (if enabled)
+      // 3. Execute preBuild hooks (unless skipHooks is enabled)
+      if (!effectiveOptions.skipHooks && this.config?.hooks?.preBuild && this.config.hooks.preBuild.length > 0) {
+        const hookContext: HookContext = {
+          phase: 'preBuild',
+          registry: registryName,
+          version: 'unknown', // Version not yet determined
+          packageName: 'unknown',
+          environment: {}
+        }
+
+        const hookResult = await this.hookExecutor.executeHooks(
+          this.config.hooks.preBuild,
+          hookContext
+        )
+
+        if (!hookResult.success) {
+          throw ErrorFactory.create(
+            'PUBLISH_FAILED',
+            registryName,
+            `preBuild フックが失敗しました: ${hookResult.failedHooks.join(', ')}`
+          )
+        }
+      }
+
+      // 4. Security scan (if enabled)
       const secretsScanningEnabled = this.config?.security?.secretsScanning?.enabled !== false
       if (secretsScanningEnabled) {
         console.log('🔍 セキュリティスキャン実行中...')
@@ -162,7 +189,7 @@ export class PackagePublisher {
         }
       }
 
-      // 4. Validation
+      // 5. Validation
       await this.stateMachine.transition('VALIDATING', { registry: registryName })
       console.log('🔍 パッケージ検証中...')
 
@@ -188,8 +215,9 @@ export class PackagePublisher {
       console.log('✅ 検証完了\n')
 
       const packageVersion = validationResult.metadata?.version
+      const packageName = validationResult.metadata?.packageName
 
-      // 5. Dry-run (if not skipped)
+      // 6. Dry-run (if not skipped)
       const shouldSkipDryRun = effectiveOptions.dryRun || options.resume || this.config?.publish?.dryRun === 'never'
       if (!shouldSkipDryRun) {
         await this.stateMachine.transition('DRY_RUN')
@@ -220,7 +248,7 @@ export class PackagePublisher {
         return {
           success: true,
           registry: registryName,
-          packageName: String(validationResult.metadata?.packageName || 'unknown'),
+          packageName: String(packageName || 'unknown'),
           version: String(packageVersion || 'unknown'),
           errors,
           warnings,
@@ -229,7 +257,7 @@ export class PackagePublisher {
         }
       }
 
-      // 6. Confirmation (interactive mode)
+      // 7. Confirmation (interactive mode)
       const shouldConfirm = !effectiveOptions.nonInteractive && !options.resume && (this.config?.publish?.confirm !== false)
       if (shouldConfirm) {
         await this.stateMachine.transition('CONFIRMING')
@@ -251,7 +279,7 @@ export class PackagePublisher {
           return {
             success: false,
             registry: registryName,
-            packageName: String(validationResult.metadata?.packageName || 'unknown'),
+            packageName: String(packageName || 'unknown'),
             version: String(packageVersion || 'unknown'),
             errors: ['User cancelled'],
             warnings,
@@ -261,7 +289,46 @@ export class PackagePublisher {
         }
       }
 
-      // 7. Publish
+      // 8. Execute prePublish hooks (unless skipHooks is enabled)
+      if (!effectiveOptions.skipHooks && this.config?.hooks?.prePublish && this.config.hooks.prePublish.length > 0) {
+        const hookContext: HookContext = {
+          phase: 'prePublish',
+          registry: registryName,
+          version: String(packageVersion || 'unknown'),
+          packageName: String(packageName || 'unknown'),
+          environment: {}
+        }
+
+        const hookResult = await this.hookExecutor.executeHooks(
+          this.config.hooks.prePublish,
+          hookContext
+        )
+
+        if (!hookResult.success) {
+          throw ErrorFactory.create(
+            'PUBLISH_FAILED',
+            registryName,
+            `prePublish フックが失敗しました: ${hookResult.failedHooks.join(', ')}`
+          )
+        }
+      }
+
+      // Return if hooks-only mode (skip actual publishing)
+      if (effectiveOptions.hooksOnly) {
+        console.log('🪝 フックのみ実行モード: 実際の公開はスキップします\n')
+        return {
+          success: true,
+          registry: registryName,
+          packageName: String(packageName || 'unknown'),
+          version: String(packageVersion || 'unknown'),
+          errors,
+          warnings,
+          duration: Date.now() - startTime,
+          state: 'DRY_RUN'
+        }
+      }
+
+      // 9. Publish
       await this.stateMachine.transition('PUBLISHING', { version: packageVersion })
       console.log('📤 公開中...')
 
@@ -277,7 +344,7 @@ export class PackagePublisher {
 
       console.log('✅ 公開完了\n')
 
-      // 8. Verify (if enabled)
+      // 10. Verify (if enabled)
       const shouldVerify = this.config?.publish?.verify !== false
       let verifyResult: VerificationResult | null = null
       if (shouldVerify) {
@@ -296,13 +363,36 @@ export class PackagePublisher {
         }
       }
 
+      // 11. Execute postPublish hooks (unless skipHooks is enabled)
+      if (!effectiveOptions.skipHooks && this.config?.hooks?.postPublish && this.config.hooks.postPublish.length > 0) {
+        const hookContext: HookContext = {
+          phase: 'postPublish',
+          registry: registryName,
+          version: String(packageVersion || 'unknown'),
+          packageName: String(packageName || 'unknown'),
+          environment: {
+            VERIFICATION_URL: verifyResult?.url || ''
+          }
+        }
+
+        const hookResult = await this.hookExecutor.executeHooks(
+          this.config.hooks.postPublish,
+          hookContext
+        )
+
+        if (!hookResult.success) {
+          warnings.push(`postPublish フックが失敗: ${hookResult.failedHooks.join(', ')}`)
+          console.warn('⚠️  postPublish フックが失敗しましたが、公開自体は成功しています')
+        }
+      }
+
       // Success
       await this.stateMachine.transition('SUCCESS')
 
       return {
         success: true,
         registry: registryName,
-        packageName: String(validationResult.metadata?.packageName || 'unknown'),
+        packageName: String(packageName || 'unknown'),
         version: String(packageVersion || 'unknown'),
         publishedAt: new Date(),
         verificationUrl: verifyResult?.url,
@@ -318,6 +408,32 @@ export class PackagePublisher {
 
       const err = error as Error
       errors.push(err.message)
+
+      // Execute onError hooks (unless skipHooks is enabled)
+      if (!options.skipHooks && this.config?.hooks?.onError && this.config.hooks.onError.length > 0) {
+        try {
+          const hookContext: HookContext = {
+            phase: 'onError',
+            registry: options.registry || 'unknown',
+            version: 'unknown',
+            packageName: 'unknown',
+            environment: {
+              ERROR_MESSAGE: err.message
+            }
+          }
+
+          const hookResult = await this.hookExecutor.executeHooks(
+            this.config.hooks.onError,
+            hookContext
+          )
+
+          if (!hookResult.success) {
+            console.warn('⚠️  onError フックも失敗しました')
+          }
+        } catch (hookError) {
+          console.error('onError フック実行中にエラーが発生:', hookError)
+        }
+      }
 
       return {
         success: false,

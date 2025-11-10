@@ -1,0 +1,26 @@
+{
+  "name": "package-publisher-plugin-example",
+  "version": "1.0.0",
+  "description": "Example plugin for package-publisher demonstrating custom registry support",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "keywords": [
+    "package-publisher",
+    "plugin",
+    "example"
+  ],
+  "author": "Package Publisher Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "package-publisher": "^0.1.0"
+  }
+}

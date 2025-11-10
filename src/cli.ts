@@ -3,11 +3,13 @@
 import { Command } from 'commander'
 import { PackagePublisher } from './core/PackagePublisher'
 import { BatchPublisher } from './core/BatchPublisher'
+import { PublishAnalytics } from './core/PublishAnalytics'
 import { NPMPlugin } from './plugins/NPMPlugin'
 import { CratesIOPlugin } from './plugins/CratesIOPlugin'
 import { PyPIPlugin } from './plugins/PyPIPlugin'
 import { HomebrewPlugin } from './plugins/HomebrewPlugin'
 import chalk from 'chalk'
+import fs from 'fs/promises'
 
 const program = new Command()
 
@@ -31,6 +33,8 @@ program
   .option('--tag <name>', 'Publish with tag (default: latest)')
   .option('--access <level>', 'Access level for scoped packages (public|restricted)')
   .option('-c, --config <path>', 'Custom configuration file path')
+  .option('--skip-hooks', 'Skip all hook execution (preBuild, prePublish, postPublish, onError)')
+  .option('--hooks-only', 'Execute hooks only without actual publishing (dry-run for hooks)')
   .action(async (options) => {
     const projectPath = process.cwd()
 
@@ -55,7 +59,9 @@ program
           resume: options.resume,
           otp: options.otp,
           tag: options.tag,
-          access: options.access
+          access: options.access,
+          skipHooks: options.skipHooks,
+          hooksOnly: options.hooksOnly
         }
 
         const batchOptions = {
@@ -111,7 +117,9 @@ program
           resume: options.resume,
           otp: options.otp,
           tag: options.tag,
-          access: options.access
+          access: options.access,
+          skipHooks: options.skipHooks,
+          hooksOnly: options.hooksOnly
         }
 
         const result = await publisher.publish(publishOptions)
@@ -229,6 +237,137 @@ program
       process.exit(0)
     } catch (error) {
       console.error(chalk.red.bold('\n❌ エラー'))
+      console.error(chalk.red((error as Error).message))
+      process.exit(1)
+    }
+  })
+
+program
+  .command('stats')
+  .description('Display publishing statistics')
+  .option('-r, --registry <name>', 'Filter by registry (npm, pypi, crates.io)')
+  .option('-p, --package <name>', 'Filter by package name')
+  .option('--success-only', 'Show only successful publishes')
+  .option('--failures-only', 'Show only failed publishes')
+  .option('--days <number>', 'Show statistics for the last N days', '30')
+  .action(async (options) => {
+    const projectPath = process.cwd()
+
+    try {
+      console.log(chalk.bold('\n📊 Publishing Statistics\n'))
+
+      const analytics = new PublishAnalytics(projectPath)
+      await analytics.initialize()
+
+      // Calculate date range
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - parseInt(options.days, 10))
+
+      const analyticsOptions = {
+        registry: options.registry,
+        packageName: options.package,
+        successOnly: options.successOnly,
+        failuresOnly: options.failuresOnly,
+        startDate,
+        endDate
+      }
+
+      const statistics = analytics.getStatistics(analyticsOptions)
+
+      // Display overall statistics
+      console.log(chalk.bold('Overall Statistics'))
+      console.log(chalk.gray(`Time Range: ${statistics.timeRange.start.toLocaleDateString()} - ${statistics.timeRange.end.toLocaleDateString()}`))
+      console.log()
+
+      if (statistics.totalAttempts === 0) {
+        console.log(chalk.yellow('No publishing records found.'))
+        console.log(chalk.gray('\nPublish a package to start tracking statistics.\n'))
+        process.exit(0)
+      }
+
+      console.log(`Total Attempts: ${chalk.bold(String(statistics.totalAttempts))}`)
+      console.log(`Successful: ${chalk.green(String(statistics.successCount))}`)
+      console.log(`Failed: ${chalk.red(String(statistics.failureCount))}`)
+      console.log(`Success Rate: ${chalk.bold(statistics.successRate.toFixed(2) + '%')}`)
+      console.log(`Average Duration: ${chalk.gray((statistics.averageDuration / 1000).toFixed(2) + 's')}`)
+      console.log()
+
+      // Display registry-specific statistics
+      if (statistics.byRegistry.size > 0) {
+        console.log(chalk.bold('Registry Statistics'))
+        console.log()
+
+        for (const stats of statistics.byRegistry.values()) {
+          console.log(chalk.cyan(`${stats.registry}:`))
+          console.log(`  Attempts: ${stats.attempts}`)
+          console.log(`  Successes: ${chalk.green(String(stats.successes))}`)
+          console.log(`  Failures: ${chalk.red(String(stats.failures))}`)
+          console.log(`  Success Rate: ${stats.successRate.toFixed(2)}%`)
+          console.log(`  Average Duration: ${(stats.averageDuration / 1000).toFixed(2)}s`)
+          if (stats.lastPublish && stats.lastVersion) {
+            console.log(`  Last Publish: ${stats.lastVersion} (${stats.lastPublish.toLocaleDateString()})`)
+          }
+          console.log()
+        }
+      }
+
+      process.exit(0)
+    } catch (error) {
+      console.error(chalk.red.bold('\n❌ Error'))
+      console.error(chalk.red((error as Error).message))
+      process.exit(1)
+    }
+  })
+
+program
+  .command('report')
+  .description('Generate publishing report')
+  .option('-f, --format <type>', 'Report format (markdown|json)', 'markdown')
+  .option('-o, --output <path>', 'Output file path (default: stdout)')
+  .option('-r, --registry <name>', 'Filter by registry')
+  .option('-p, --package <name>', 'Filter by package name')
+  .option('-l, --limit <number>', 'Limit recent publishes (default: 10)', '10')
+  .option('--days <number>', 'Show statistics for the last N days', '30')
+  .action(async (options) => {
+    const projectPath = process.cwd()
+
+    try {
+      console.log(chalk.bold('\n📝 Generating Report...\n'))
+
+      const analytics = new PublishAnalytics(projectPath)
+      await analytics.initialize()
+
+      // Calculate date range
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - parseInt(options.days, 10))
+
+      const analyticsOptions = {
+        registry: options.registry,
+        packageName: options.package,
+        limit: parseInt(options.limit, 10),
+        startDate,
+        endDate
+      }
+
+      const report = await analytics.generateReport(analyticsOptions)
+
+      // Get report content based on format
+      const content = options.format === 'json' ? report.jsonData : report.markdownSummary
+
+      // Output to file or stdout
+      if (options.output) {
+        await fs.writeFile(options.output, content, 'utf-8')
+        console.log(chalk.green(`✅ Report saved to: ${options.output}`))
+      } else {
+        console.log(content)
+      }
+
+      console.log()
+      process.exit(0)
+    } catch (error) {
+      console.error(chalk.red.bold('\n❌ Error'))
       console.error(chalk.red((error as Error).message))
       process.exit(1)
     }

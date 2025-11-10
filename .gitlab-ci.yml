@@ -1,0 +1,204 @@
+# GitLab CI/CD - Package Publisher Integration Example
+
+# タグpush時のみ実行（例: v1.2.3）
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_PIPELINE_SOURCE == "web"  # 手動実行を許可
+    - when: never
+
+# ステージ定義
+stages:
+  - test
+  - build
+  - publish
+  - verify
+
+# デフォルト設定
+default:
+  # Node.js環境
+  image: node:20-alpine
+  # キャッシュ設定
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+      - .npm/
+
+# 変数定義
+variables:
+  # npm設定
+  NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.npm"
+  # セキュリティ: レジストリURLを明示
+  NPM_REGISTRY_URL: "https://registry.npmjs.org"
+
+# =============================================================================
+# Test Stage
+# =============================================================================
+
+test:
+  stage: test
+  script:
+    - npm ci
+    - npm run lint
+    - npm test
+    - npm run test:coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    paths:
+      - coverage/
+    expire_in: 1 week
+
+# =============================================================================
+# Build Stage
+# =============================================================================
+
+build:
+  stage: build
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+      - package.json
+      - README.md
+    expire_in: 1 week
+
+# =============================================================================
+# Publish Stage
+# =============================================================================
+
+# 単一レジストリ公開（npm）
+publish:npm:
+  stage: publish
+  needs:
+    - test
+    - build
+  # プロテクトされたタグのみ
+  only:
+    - tags
+  # 本番環境を指定（環境保護）
+  environment:
+    name: production
+    url: https://www.npmjs.com/package/$CI_PROJECT_NAME
+  before_script:
+    - npm install -g package-publisher
+  script:
+    - |
+      # npm公開
+      package-publisher publish \
+        --registry npm \
+        --non-interactive \
+        --tag latest \
+        --access public
+  after_script:
+    - |
+      # 検証
+      echo "Verifying publication..."
+      sleep 10
+      npm view $CI_PROJECT_NAME@$(node -p "require('./package.json').version") || echo "Verification failed"
+
+# マルチレジストリ公開
+publish:multiregistry:
+  stage: publish
+  needs:
+    - test
+    - build
+  # 手動実行のみ（慎重に）
+  when: manual
+  # 複数言語環境が必要な場合
+  image: ubuntu:22.04
+  environment:
+    name: production-multi
+  before_script:
+    # Node.js
+    - apt-get update && apt-get install -y curl
+    - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    - apt-get install -y nodejs
+    # Python
+    - apt-get install -y python3 python3-pip
+    # Rust
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - source $HOME/.cargo/env
+    # package-publisher
+    - npm install -g package-publisher
+  script:
+    - |
+      # バッチ公開
+      package-publisher publish \
+        --registries npm,pypi,crates.io \
+        --non-interactive \
+        --continue-on-error \
+        --max-concurrency 3
+  after_script:
+    - |
+      echo "Publication Summary:"
+      echo "- npm: https://www.npmjs.com/package/$CI_PROJECT_NAME"
+      echo "- PyPI: https://pypi.org/project/$CI_PROJECT_NAME"
+      echo "- crates.io: https://crates.io/crates/$CI_PROJECT_NAME"
+
+# =============================================================================
+# Verify Stage
+# =============================================================================
+
+verify:publication:
+  stage: verify
+  needs:
+    - publish:npm
+  only:
+    - tags
+  script:
+    - |
+      PACKAGE_NAME=$CI_PROJECT_NAME
+      PACKAGE_VERSION=$(node -p "require('./package.json').version")
+      echo "Verifying $PACKAGE_NAME@$PACKAGE_VERSION"
+
+      # レジストリ確認
+      sleep 15
+      npm view $PACKAGE_NAME@$PACKAGE_VERSION > /dev/null && echo "✅ npm verification successful" || echo "❌ npm verification failed"
+
+      # セキュリティスキャン（オプション）
+      npm audit $PACKAGE_NAME || true
+
+# =============================================================================
+# GitLab CI/CD Variables 設定（Settings > CI/CD > Variables）
+# =============================================================================
+#
+# 必須のシークレット:
+#
+# 1. NPM_TOKEN
+#    - Type: Variable
+#    - Flags: Protected, Masked
+#    - Value: npm access token (Automation)
+#
+# 2. PYPI_TOKEN（マルチレジストリ使用時）
+#    - Type: Variable
+#    - Flags: Protected, Masked
+#    - Value: PyPI API token
+#
+# 3. CARGO_REGISTRY_TOKEN（マルチレジストリ使用時）
+#    - Type: Variable
+#    - Flags: Protected, Masked
+#    - Value: crates.io token
+#
+# セキュリティベストプラクティス:
+#
+# 1. プロテクトされたタグ
+#    - Settings > Repository > Protected tags で v* を保護
+#
+# 2. 環境保護
+#    - Settings > CI/CD > Environments で本番環境を保護
+#    - 必要に応じて承認フロー追加
+#
+# 3. 最小権限
+#    - 各トークンは最小限の権限のみ
+#    - Automation型トークンを推奨
+#
+# 4. マスキング
+#    - すべてのSecretsにMaskedフラグを設定
+#    - ログ出力に注意

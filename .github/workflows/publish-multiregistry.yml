@@ -1,0 +1,165 @@
+name: Publish to Multiple Registries
+
+# タグpush時に自動実行（例: v1.2.3）
+on:
+  push:
+    tags:
+      - 'v*'
+
+  # 手動実行を許可
+  workflow_dispatch:
+    inputs:
+      registries:
+        description: 'Comma-separated registries (e.g., npm,pypi,crates.io)'
+        required: true
+        default: 'npm,pypi'
+        type: string
+      sequential:
+        description: 'Publish sequentially instead of in parallel'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  publish-multiregistry:
+    runs-on: ubuntu-latest
+
+    # セキュリティ: 本番環境を使用
+    environment: production
+
+    permissions:
+      contents: read
+      id-token: write  # OIDC token発行に必要
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install build twine
+          cargo --version
+
+      - name: Run tests
+        run: |
+          npm test
+          # Python/Rustのテストもここで実行
+          # pytest tests/ || true
+          # cargo test || true
+
+      - name: Build packages
+        run: |
+          npm run build
+          # Python/Rustのビルドもここで実行
+          # python -m build
+          # cargo build --release
+
+      - name: Install package-publisher
+        run: npm install -g package-publisher
+
+      - name: Publish to multiple registries
+        env:
+          # npm
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # PyPI
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+          # crates.io
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          # デフォルトレジストリ（workflow_dispatch経由の場合は入力値を使用）
+          REGISTRIES="${{ github.event.inputs.registries || 'npm,pypi,crates.io' }}"
+
+          # 並列/直列オプション
+          SEQUENTIAL_FLAG=""
+          if [ "${{ github.event.inputs.sequential }}" = "true" ]; then
+            SEQUENTIAL_FLAG="--sequential"
+          fi
+
+          # バッチ公開実行
+          package-publisher publish \
+            --registries $REGISTRIES \
+            --non-interactive \
+            --continue-on-error \
+            $SEQUENTIAL_FLAG \
+            --max-concurrency 3
+
+      - name: Verify publications
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name" 2>/dev/null || echo "unknown")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "unknown")
+
+          echo "Verifying publications..."
+          sleep 15  # レジストリへの反映待ち
+
+          # npm
+          if echo "$REGISTRIES" | grep -q "npm"; then
+            npm view $PACKAGE_NAME@$PACKAGE_VERSION || echo "npm verification failed"
+          fi
+
+          # PyPI
+          if echo "$REGISTRIES" | grep -q "pypi"; then
+            pip index versions $PACKAGE_NAME | grep $PACKAGE_VERSION || echo "PyPI verification failed"
+          fi
+
+          # crates.io
+          if echo "$REGISTRIES" | grep -q "crates"; then
+            cargo search $PACKAGE_NAME | grep $PACKAGE_VERSION || echo "crates.io verification failed"
+          fi
+
+      - name: Create summary
+        if: always()
+        run: |
+          echo "## Publication Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Package**: $PACKAGE_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: $PACKAGE_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registries**: $REGISTRIES" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mode**: ${{ github.event.inputs.sequential == 'true' && 'Sequential' || 'Parallel' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [npm](https://www.npmjs.com/package/$PACKAGE_NAME)" >> $GITHUB_STEP_SUMMARY
+          echo "- [PyPI](https://pypi.org/project/$PACKAGE_NAME)" >> $GITHUB_STEP_SUMMARY
+          echo "- [crates.io](https://crates.io/crates/$PACKAGE_NAME)" >> $GITHUB_STEP_SUMMARY
+
+# セキュリティベストプラクティス:
+#
+# 1. 複数のSecretsを設定
+#    - NPM_TOKEN: npm access token
+#    - PYPI_TOKEN: PyPI API token
+#    - CARGO_REGISTRY_TOKEN: crates.io token
+#
+# 2. トークンの安全な管理
+#    - 環境変数経由で渡す
+#    - ログに表示されないよう注意
+#    - 最小権限のトークンを使用
+#
+# 3. continue-on-error オプション
+#    - 1つのレジストリが失敗しても他を継続
+#    - エラーハンドリングを適切に
+#
+# 4. 検証ステップ
+#    - 公開後に必ず確認
+#    - サマリーで結果を可視化

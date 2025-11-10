@@ -9,6 +9,9 @@ export { BatchPublisher } from './core/BatchPublisher'
 export { PublishStateMachine } from './core/PublishStateMachine'
 export { ErrorFactory, PublishError, ErrorCodes } from './core/ErrorHandling'
 export { RetryManager } from './core/RetryManager'
+export { HookExecutor } from './core/HookExecutor'
+export { PublishAnalytics } from './core/PublishAnalytics'
+export { PluginLoader, PluginLoadError } from './core/PluginLoader'
 
 // Plugins
 export { NPMPlugin } from './plugins/NPMPlugin'
@@ -20,6 +23,11 @@ export { HomebrewPlugin } from './plugins/HomebrewPlugin'
 export { SecureTokenManager } from './security/SecureTokenManager'
 export { SecretsScanner } from './security/SecretsScanner'
 export { SafeCommandExecutor } from './security/SafeCommandExecutor'
+
+// Notifications
+export { NotificationManager } from './notifications/NotificationManager'
+export { SlackNotifier } from './notifications/SlackNotifier'
+export { EmailNotifier } from './notifications/EmailNotifier'
 
 // Interfaces (type-only exports)
 export type {
@@ -44,5 +52,23 @@ export type {
   PublishReport,
   PackageMetadata,
   BatchPublishOptions,
-  BatchPublishResult
+  BatchPublishResult,
+  HookPhase,
+  HookContext,
+  HookExecutionResult,
+  HookOutput,
+  PublishStatistics,
+  RegistryStatistics,
+  AnalyticsRecord,
+  AnalyticsOptions,
+  AnalyticsReport,
+  NotificationEventType,
+  PublishEvent,
+  NotificationResult,
+  Notifier,
+  PublishPlugin,
+  PluginInitConfig,
+  PluginPublishOptions,
+  PluginVerifyOptions,
+  PluginMetadata
 } from './core/interfaces'

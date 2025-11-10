@@ -1,0 +1,110 @@
+name: Publish to npm
+
+# タグpush時に自動実行（例: v1.2.3）
+on:
+  push:
+    tags:
+      - 'v*'
+
+# または手動実行を許可
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.2.3)'
+        required: true
+        type: string
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+
+    # セキュリティ: GitHub環境を使用してSecrets保護
+    environment: production
+
+    permissions:
+      contents: read
+      id-token: write  # OIDC token発行に必要（推奨）
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 全履歴を取得（タグ情報に必要）
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          # npm provenance対応（推奨）
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build package
+        run: npm run build
+
+      - name: Install package-publisher
+        run: npm install -g package-publisher
+
+      # オプション: package.jsonのバージョンを更新
+      - name: Update package version
+        if: github.event.inputs.version
+        run: npm version ${{ github.event.inputs.version }} --no-git-tag-version
+
+      - name: Publish to npm
+        env:
+          # Secrets設定: Settings > Secrets > Actions > NPM_TOKEN
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # セキュリティ: 環境変数経由でトークンを安全に渡す
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # 非対話モードで公開
+          package-publisher publish \
+            --registry npm \
+            --non-interactive \
+            --tag latest \
+            --access public
+
+      - name: Verify publication
+        run: |
+          # 公開確認（オプション）
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "Verifying $PACKAGE_NAME@$PACKAGE_VERSION on npm..."
+          sleep 10  # レジストリへの反映待ち
+          npm view $PACKAGE_NAME@$PACKAGE_VERSION
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Published to npm: https://www.npmjs.com/package/${{ env.PACKAGE_NAME }}/v/${{ env.PACKAGE_VERSION }}
+          draft: false
+          prerelease: false
+
+# セキュリティベストプラクティス:
+# 1. Secrets管理
+#    - NPM_TOKEN: npm access token (Automation型推奨)
+#    - Settings > Secrets > Actions で設定
+#
+# 2. 環境保護
+#    - production環境を作成
+#    - 必要に応じて承認フロー追加
+#
+# 3. OIDC認証（推奨）
+#    - id-token: write パーミッション
+#    - npm provenance対応
+#
+# 4. 最小権限原則
+#    - contents: read のみ
+#    - 不要な権限は付与しない

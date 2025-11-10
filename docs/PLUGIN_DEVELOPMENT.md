@@ -5,16 +5,65 @@ package-publisherのカスタムレジストリプラグインを開発するた
 ## 📋 目次
 
 - [概要](#概要)
-- [プラグインアーキテクチャ](#プラグインアーキテクチャ)
-- [RegistryPluginインターフェース](#registrypluginインターフェース)
-- [実装ガイド](#実装ガイド)
-- [テスト](#テスト)
-- [サンプルプラグイン](#サンプルプラグイン)
-- [ベストプラクティス](#ベストプラクティス)
+- [プラグインの種類](#プラグインの種類)
+- [RegistryPlugin（ビルトインプラグイン）](#registrypluginビルトインプラグイン)
+  - [プラグインアーキテクチャ](#プラグインアーキテクチャ)
+  - [RegistryPluginインターフェース](#registrypluginインターフェース)
+  - [実装ガイド](#実装ガイド)
+  - [テスト](#テスト)
+  - [サンプルプラグイン](#サンプルプラグイン)
+  - [ベストプラクティス](#ベストプラクティス)
+- [PublishPlugin（外部プラグイン）](#publishplugin外部プラグイン)
+  - [クイックスタート](#クイックスタート)
+  - [PublishPluginインターフェース](#publishpluginインターフェース)
+  - [設定とロード](#設定とロード)
+  - [実装例](#実装例)
+  - [テストとデバッグ](#テストとデバッグ)
 
 ## 概要
 
-package-publisherは、プラグインアーキテクチャを採用しており、新しいパッケージレジストリへの対応を容易に追加できます。
+package-publisherは、2種類のプラグインシステムを提供しています：
+
+1. **RegistryPlugin（ビルトインプラグイン）**: package-publisher本体に統合されるプラグイン
+2. **PublishPlugin（外部プラグイン）**: npm パッケージまたはローカルファイルとして動的にロードされるプラグイン
+
+## プラグインの種類
+
+### RegistryPlugin（ビルトインプラグイン）
+
+package-publisher本体に統合されるプラグインで、フルフィーチャーの実装が可能です。
+
+**特徴:**
+- ✅ package-publisherのソースコードに含まれる
+- ✅ フルアクセス: すべての内部API、セキュリティ機能を利用可能
+- ✅ 完全な統合: 検証、Dry-run、公開、検証、ロールバックのフルライフサイクル
+- ✅ テスト: package-publisherのテストスイートに含まれる
+- ❌ ユーザーが動的に追加できない
+
+**使用例:**
+- NPMPlugin, PyPIPlugin, CratesIOPlugin, HomebrewPlugin（すべて標準装備）
+
+### PublishPlugin（外部プラグイン）
+
+外部パッケージとして配布され、動的にロードされるプラグインです。
+
+**特徴:**
+- ✅ 動的ロード: npm パッケージまたはローカルファイルから読み込み
+- ✅ 独立配布: 独自のnpmパッケージとして公開可能
+- ✅ シンプルなAPI: 公開に必要な最小限のインターフェース
+- ✅ プロジェクト固有の設定: `.publish-config.yaml` で設定
+- ❌ 内部APIへのアクセス制限あり
+
+**使用例:**
+- 企業内プライベートレジストリ
+- カスタムパッケージマネージャー
+- 特殊なレジストリ（社内システム等）
+
+---
+
+# RegistryPlugin（ビルトインプラグイン）
+
+package-publisher本体に統合されるプラグインの開発ガイドです。
 
 ### プラグインの責務
 
@@ -766,5 +815,629 @@ async validate(): Promise<ValidationResult> {
 
 ---
 
-**Last Updated**: 2025-01-10
+# PublishPlugin（外部プラグイン）
+
+外部パッケージとして配布され、動的にロードされるプラグインの開発ガイドです。
+
+## クイックスタート
+
+### 1. プロジェクト作成
+
+```bash
+mkdir my-registry-plugin
+cd my-registry-plugin
+npm init -y
+```
+
+### 2. 依存関係インストール
+
+```bash
+npm install --save-dev typescript @types/node
+npm install --save-peer package-publisher
+```
+
+### 3. TypeScript設定
+
+`tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "declaration": true,
+    "strict": true,
+    "esModuleInterop": true
+  }
+}
+```
+
+### 4. プラグイン実装
+
+`src/index.ts`:
+
+```typescript
+import type {
+  PublishPlugin,
+  PluginInitConfig,
+  PluginPublishOptions,
+  PublishResult,
+} from 'package-publisher'
+
+class MyRegistryPlugin implements PublishPlugin {
+  readonly name = 'myregistry'
+  readonly version = '1.0.0'
+
+  private apiKey?: string
+  private apiUrl?: string
+
+  async initialize(config: PluginInitConfig): Promise<void> {
+    this.apiKey = config.pluginConfig.apiKey as string
+    this.apiUrl = config.pluginConfig.apiUrl as string
+
+    if (!this.apiKey) {
+      throw new Error('API key is required')
+    }
+  }
+
+  async supports(projectPath: string): Promise<boolean> {
+    // プロジェクト検出ロジック
+    try {
+      const { access } = await import('fs/promises')
+      await access(`${projectPath}/myregistry.json`)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async publish(options: PluginPublishOptions): Promise<PublishResult> {
+    const { packageName, version } = options.packageMetadata
+
+    try {
+      const response = await fetch(`${this.apiUrl}/publish`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ packageName, version }),
+      })
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `API error: ${response.status}`,
+        }
+      }
+
+      return {
+        success: true,
+        version,
+        packageUrl: `${this.apiUrl}/packages/${packageName}`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+}
+
+export default new MyRegistryPlugin()
+```
+
+### 5. ビルドと使用
+
+```bash
+# ビルド
+npx tsc
+
+# 設定ファイルに追加 (.publish-config.yaml)
+plugins:
+  - name: ./path/to/my-registry-plugin/dist/index.js
+    config:
+      apiUrl: "https://api.myregistry.com"
+      apiKey: "${MYREGISTRY_API_KEY}"
+```
+
+## PublishPluginインターフェース
+
+### 必須プロパティ
+
+#### `name: string`
+
+プラグインの一意な識別子。レジストリ名と一致させることを推奨。
+
+```typescript
+readonly name = 'myregistry'
+```
+
+#### `version: string`
+
+プラグインのセマンティックバージョン。
+
+```typescript
+readonly version = '1.0.0'
+```
+
+### 必須メソッド
+
+#### `initialize(config: PluginInitConfig): Promise<void>`
+
+プラグイン読み込み時に1回だけ呼ばれます。設定の検証、APIクライアントの初期化等を行います。
+
+```typescript
+interface PluginInitConfig {
+  projectPath: string
+  pluginConfig: Record<string, unknown>
+  logger?: (message: string) => void
+}
+```
+
+**実装例:**
+
+```typescript
+async initialize(config: PluginInitConfig): Promise<void> {
+  this.logger = config.logger
+  this.apiKey = config.pluginConfig.apiKey as string
+
+  if (!this.apiKey) {
+    throw new Error('Missing required config: apiKey')
+  }
+
+  this.logger?.('Plugin initialized successfully')
+}
+```
+
+#### `supports(projectPath: string): Promise<boolean>`
+
+プロジェクトがこのプラグインで処理可能か判定します。
+
+**実装パターン:**
+
+```typescript
+// パターン1: 特定ファイルの存在確認
+async supports(projectPath: string): Promise<boolean> {
+  try {
+    const { access } = await import('fs/promises')
+    await access(`${projectPath}/myregistry.config.json`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// パターン2: package.json のフィールド確認
+async supports(projectPath: string): Promise<boolean> {
+  try {
+    const pkg = await import(`${projectPath}/package.json`)
+    return pkg.publishConfig?.registry === 'myregistry'
+  } catch {
+    return false
+  }
+}
+```
+
+#### `publish(options: PluginPublishOptions): Promise<PublishResult>`
+
+パッケージを公開します。
+
+```typescript
+interface PluginPublishOptions {
+  projectPath: string
+  packageMetadata: PackageMetadata
+  publishOptions?: PublishOptions
+  pluginOptions?: Record<string, unknown>
+}
+
+interface PublishResult {
+  success: boolean
+  version?: string
+  packageUrl?: string
+  output?: string
+  error?: string
+  metadata?: Record<string, unknown>
+}
+```
+
+**実装例:**
+
+```typescript
+async publish(options: PluginPublishOptions): Promise<PublishResult> {
+  const { packageName, version } = options.packageMetadata
+
+  try {
+    // アップロードロジック
+    await this.uploadPackage(packageName, version, options.projectPath)
+
+    return {
+      success: true,
+      version,
+      packageUrl: `https://myregistry.com/packages/${packageName}`,
+      output: `Published ${packageName}@${version}`,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+```
+
+### オプショナルメソッド
+
+#### `verify(options: PluginVerifyOptions): Promise<VerificationResult>`
+
+公開後の検証（推奨）。
+
+```typescript
+interface PluginVerifyOptions {
+  projectPath: string
+  packageName: string
+  version: string
+  expectedUrl?: string
+  pluginOptions?: Record<string, unknown>
+}
+
+interface VerificationResult {
+  verified: boolean
+  version?: string
+  url?: string
+  error?: string
+  metadata?: Record<string, unknown>
+}
+```
+
+**実装例:**
+
+```typescript
+async verify(options: PluginVerifyOptions): Promise<VerificationResult> {
+  const { packageName, version } = options
+
+  const response = await fetch(
+    `https://api.myregistry.com/packages/${packageName}/${version}`
+  )
+
+  return {
+    verified: response.ok,
+    version,
+    url: `https://myregistry.com/packages/${packageName}`,
+  }
+}
+```
+
+## 設定とロード
+
+### YAML設定ファイル
+
+`.publish-config.yaml`:
+
+```yaml
+plugins:
+  # npmパッケージとして配布
+  - name: package-publisher-plugin-myregistry
+    version: "^1.0.0"
+    config:
+      apiUrl: "https://api.myregistry.com"
+      apiKey: "${MYREGISTRY_API_KEY}"  # 環境変数
+
+  # ローカルパスから読み込み
+  - name: ./plugins/custom-plugin.js
+    config:
+      endpoint: "http://localhost:3000"
+      token: "${CUSTOM_TOKEN}"
+```
+
+### 環境変数の使用
+
+機密情報は必ず環境変数で管理：
+
+```bash
+export MYREGISTRY_API_KEY="your-secret-key"
+export CUSTOM_TOKEN="another-secret"
+```
+
+設定ファイルで `${変数名}` 形式で参照すると、自動的に展開されます。
+
+### プラグインのロード
+
+PluginLoader が自動的に：
+
+1. 設定ファイルからプラグイン情報を読み込み
+2. npm パッケージまたはローカルファイルから動的インポート
+3. `initialize()` を呼び出して初期化
+4. プラグインをキャッシュ
+
+```typescript
+// 内部的な動作（ユーザーは意識不要）
+const loader = new PluginLoader(projectPath)
+const plugins = await loader.loadPlugins(pluginConfigs)
+```
+
+## 実装例
+
+完全なサンプルは [`examples/plugin-example/`](../examples/plugin-example/) を参照してください。
+
+### シンプルな例
+
+```typescript
+import type {
+  PublishPlugin,
+  PluginInitConfig,
+  PluginPublishOptions,
+  PublishResult,
+} from 'package-publisher'
+
+class SimplePlugin implements PublishPlugin {
+  readonly name = 'simple'
+  readonly version = '1.0.0'
+
+  async initialize(config: PluginInitConfig): Promise<void> {
+    // 最小限の初期化
+  }
+
+  async supports(projectPath: string): Promise<boolean> {
+    return true // すべてのプロジェクトをサポート
+  }
+
+  async publish(options: PluginPublishOptions): Promise<PublishResult> {
+    // シミュレーション公開
+    return {
+      success: true,
+      version: options.packageMetadata.version,
+    }
+  }
+}
+
+export default new SimplePlugin()
+```
+
+### エラーハンドリング付き
+
+```typescript
+class RobustPlugin implements PublishPlugin {
+  readonly name = 'robust'
+  readonly version = '1.0.0'
+
+  private config?: Record<string, unknown>
+  private logger?: (message: string) => void
+
+  async initialize(config: PluginInitConfig): Promise<void> {
+    this.logger = config.logger
+    this.config = config.pluginConfig
+
+    // 設定検証
+    const requiredFields = ['apiUrl', 'apiKey']
+    for (const field of requiredFields) {
+      if (!this.config[field]) {
+        throw new Error(`Missing required config: ${field}`)
+      }
+    }
+
+    this.logger?.('Plugin initialized')
+  }
+
+  async supports(projectPath: string): Promise<boolean> {
+    try {
+      // 検出ロジック
+      return true
+    } catch (error) {
+      this.logger?.(`Detection failed: ${error}`)
+      return false
+    }
+  }
+
+  async publish(options: PluginPublishOptions): Promise<PublishResult> {
+    this.logger?.('Publishing...')
+
+    try {
+      // 公開ロジック
+      return {
+        success: true,
+        version: options.packageMetadata.version,
+      }
+    } catch (error) {
+      this.logger?.(`Publish failed: ${error}`)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+}
+```
+
+## テストとデバッグ
+
+### ユニットテスト
+
+```typescript
+import { describe, it, expect } from '@jest/globals'
+import plugin from '../src/index'
+
+describe('MyRegistryPlugin', () => {
+  it('should initialize with valid config', async () => {
+    await expect(
+      plugin.initialize({
+        projectPath: '/test',
+        pluginConfig: {
+          apiUrl: 'https://api.test.com',
+          apiKey: 'test-key',
+        },
+      })
+    ).resolves.not.toThrow()
+  })
+
+  it('should support projects with marker file', async () => {
+    // モックファイルシステムでテスト
+  })
+
+  it('should publish successfully', async () => {
+    const result = await plugin.publish({
+      projectPath: '/test',
+      packageMetadata: {
+        name: 'test-package',
+        version: '1.0.0',
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+})
+```
+
+### 統合テスト
+
+```typescript
+import { PluginLoader } from 'package-publisher'
+
+describe('Plugin Integration', () => {
+  it('should load and use plugin', async () => {
+    const loader = new PluginLoader('/test/project')
+    const plugin = await loader.loadFromPath('./dist/index.js')
+
+    expect(plugin.name).toBe('myregistry')
+
+    const result = await plugin.publish({
+      projectPath: '/test/project',
+      packageMetadata: {
+        name: 'test',
+        version: '1.0.0',
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+})
+```
+
+### ローカルテスト
+
+```bash
+# プラグインをビルド
+npm run build
+
+# ローカルリンク
+npm link
+
+# テストプロジェクトで使用
+cd /path/to/test/project
+npm link package-publisher-plugin-myregistry
+
+# 設定ファイルに追加
+# .publish-config.yaml:
+# plugins:
+#   - name: package-publisher-plugin-myregistry
+#     config: { ... }
+
+# 公開テスト
+package-publisher publish --registry myregistry --dry-run
+```
+
+## 配布
+
+### npm パッケージとして公開
+
+`package.json`:
+
+```json
+{
+  "name": "package-publisher-plugin-myregistry",
+  "version": "1.0.0",
+  "description": "MyRegistry plugin for package-publisher",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "keywords": [
+    "package-publisher",
+    "plugin",
+    "myregistry"
+  ],
+  "peerDependencies": {
+    "package-publisher": "^0.1.0"
+  }
+}
+```
+
+公開:
+
+```bash
+npm publish
+```
+
+### ローカルファイルとして配布
+
+社内やプライベート環境での使用:
+
+```yaml
+# .publish-config.yaml
+plugins:
+  - name: /shared/plugins/myregistry-plugin.js
+    config:
+      apiUrl: "http://internal-registry.company.com"
+      apiKey: "${COMPANY_REGISTRY_KEY}"
+```
+
+## トラブルシューティング
+
+### プラグインが読み込まれない
+
+**症状:** `Failed to load plugin from path`
+
+**解決策:**
+1. ファイルパスが正しいか確認
+2. ビルド済みか確認: `ls -la dist/index.js`
+3. エクスポートが正しいか確認: `export default` または `export const plugin`
+
+### 初期化エラー
+
+**症状:** `Failed to initialize plugin`
+
+**解決策:**
+1. 設定ファイルの `config` セクションを確認
+2. 必須フィールドが揃っているか確認
+3. 環境変数が設定されているか確認: `echo $MYREGISTRY_API_KEY`
+
+### TypeScript エラー
+
+**症状:** `Cannot find module 'package-publisher'`
+
+**解決策:**
+
+```bash
+npm install --save-dev package-publisher
+```
+
+## まとめ
+
+### PublishPlugin vs RegistryPlugin
+
+| 特徴 | PublishPlugin | RegistryPlugin |
+|------|---------------|----------------|
+| 配布方法 | npm / ローカルファイル | package-publisher に統合 |
+| 動的ロード | ✅ 可能 | ❌ 不可 |
+| API アクセス | 制限あり | フルアクセス |
+| 実装難易度 | 簡単 | やや複雑 |
+| 使用例 | プライベートレジストリ | 標準レジストリ（npm, PyPI等） |
+
+### 推奨される使い分け
+
+- **PublishPlugin を使う場合:**
+  - 企業内プライベートレジストリ
+  - カスタムパッケージマネージャー
+  - プロジェクト固有のレジストリ
+
+- **RegistryPlugin を使う場合:**
+  - package-publisher に標準搭載したい
+  - 完全な統合が必要
+  - コントリビューションとして提供
+
+---
+
+**Last Updated**: 2025-11-10
 **Version**: 0.1.0

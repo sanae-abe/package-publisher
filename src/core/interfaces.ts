@@ -87,6 +87,8 @@ export interface PublishOptions {
   access?: 'public' | 'restricted' // npm scoped packages
   resume?: boolean
   registry?: string
+  skipHooks?: boolean // Skip all hook execution
+  hooksOnly?: boolean // Execute hooks only (dry-run for hooks)
   [key: string]: boolean | string | undefined // Plugin-specific options
 }
 
@@ -274,4 +276,317 @@ export interface BatchPublishResult {
 
   /** Detailed results for each registry */
   results: Map<string, PublishReport>
+}
+
+// ============================================================================
+// Hooks System
+// ============================================================================
+
+export type HookPhase = 'preBuild' | 'prePublish' | 'postPublish' | 'onError'
+
+export interface HookContext {
+  phase: HookPhase
+  registry: string
+  version: string
+  packageName: string
+  environment: Record<string, string>
+}
+
+export interface HookExecutionResult {
+  success: boolean
+  executedHooks: number
+  failedHooks: string[]
+  outputs: HookOutput[]
+}
+
+export interface HookOutput {
+  command: string
+  stdout: string
+  stderr: string
+  exitCode: number
+  duration: number
+}
+
+// ============================================================================
+// Analytics & Reporting
+// ============================================================================
+
+export interface PublishStatistics {
+  /** Total number of publish attempts */
+  totalAttempts: number
+
+  /** Number of successful publishes */
+  successCount: number
+
+  /** Number of failed publishes */
+  failureCount: number
+
+  /** Success rate (0-100) */
+  successRate: number
+
+  /** Average publish duration in milliseconds */
+  averageDuration: number
+
+  /** Registry-specific statistics */
+  byRegistry: Map<string, RegistryStatistics>
+
+  /** Time range of the statistics */
+  timeRange: {
+    start: Date
+    end: Date
+  }
+}
+
+export interface RegistryStatistics {
+  registry: string
+  attempts: number
+  successes: number
+  failures: number
+  successRate: number
+  averageDuration: number
+  lastPublish?: Date
+  lastVersion?: string
+}
+
+export interface AnalyticsRecord {
+  /** Unique identifier for this publish record */
+  id: string
+
+  /** Registry name */
+  registry: string
+
+  /** Package name */
+  packageName: string
+
+  /** Published version */
+  version: string
+
+  /** Whether the publish succeeded */
+  success: boolean
+
+  /** Error message if failed */
+  error?: string
+
+  /** Duration in milliseconds */
+  duration: number
+
+  /** Timestamp of the publish */
+  timestamp: Date
+
+  /** Additional metadata */
+  metadata?: Record<string, unknown>
+}
+
+export interface AnalyticsOptions {
+  /** Filter by registry */
+  registry?: string
+
+  /** Filter by package name */
+  packageName?: string
+
+  /** Start date for time range */
+  startDate?: Date
+
+  /** End date for time range */
+  endDate?: Date
+
+  /** Maximum number of records to retrieve */
+  limit?: number
+
+  /** Include only successful publishes */
+  successOnly?: boolean
+
+  /** Include only failed publishes */
+  failuresOnly?: boolean
+}
+
+export interface AnalyticsReport {
+  /** Generated report title */
+  title: string
+
+  /** Report generation timestamp */
+  generatedAt: Date
+
+  /** Overall statistics */
+  statistics: PublishStatistics
+
+  /** Recent publish records */
+  recentPublishes: AnalyticsRecord[]
+
+  /** Markdown-formatted summary */
+  markdownSummary: string
+
+  /** JSON export of all data */
+  jsonData: string
+}
+
+// ============================================================================
+// Notifications
+// ============================================================================
+
+export type NotificationEventType = 'success' | 'failure' | 'warning'
+
+export interface PublishEvent {
+  /** Event type */
+  type: NotificationEventType
+
+  /** Registry name */
+  registry: string
+
+  /** Package name */
+  packageName: string
+
+  /** Package version */
+  version: string
+
+  /** Event message */
+  message: string
+
+  /** Event timestamp */
+  timestamp: Date
+
+  /** Error details (if type is 'failure') */
+  error?: string
+
+  /** Additional metadata */
+  metadata?: Record<string, unknown>
+}
+
+export interface NotificationResult {
+  /** Whether the notification was sent successfully */
+  success: boolean
+
+  /** Notification channel (e.g., 'slack', 'email') */
+  channel: string
+
+  /** Error message if failed */
+  error?: string
+
+  /** Timestamp when notification was sent */
+  sentAt: Date
+}
+
+export interface Notifier {
+  /** Notifier name */
+  readonly name: string
+
+  /** Send a notification */
+  notify(event: PublishEvent): Promise<NotificationResult>
+}
+
+// ============================================================================
+// Plugin System
+// ============================================================================
+
+/**
+ * External plugin interface for custom registry support
+ * This is a simplified interface for dynamically loaded plugins
+ */
+export interface PublishPlugin {
+  /** Plugin name */
+  readonly name: string
+
+  /** Plugin version (semver) */
+  readonly version: string
+
+  /**
+   * Initialize the plugin with configuration
+   * Called once when the plugin is loaded
+   */
+  initialize(config: PluginInitConfig): Promise<void>
+
+  /**
+   * Check if this plugin supports the given project
+   * @param projectPath Path to the project directory
+   */
+  supports(projectPath: string): Promise<boolean>
+
+  /**
+   * Publish the package using this plugin
+   * @param options Plugin-specific publish options
+   */
+  publish(options: PluginPublishOptions): Promise<PublishResult>
+
+  /**
+   * Verify that the package was published successfully (optional)
+   * @param options Plugin-specific verify options
+   */
+  verify?(options: PluginVerifyOptions): Promise<VerificationResult>
+}
+
+/**
+ * Plugin initialization configuration
+ */
+export interface PluginInitConfig {
+  /** Project path */
+  projectPath: string
+
+  /** Plugin-specific configuration from config file */
+  pluginConfig: Record<string, unknown>
+
+  /** Logger function for plugin output */
+  logger?: (message: string) => void
+}
+
+/**
+ * Plugin-specific publish options
+ */
+export interface PluginPublishOptions {
+  /** Project path */
+  projectPath: string
+
+  /** Package metadata */
+  packageMetadata: PackageMetadata
+
+  /** Standard publish options */
+  publishOptions?: PublishOptions
+
+  /** Plugin-specific options */
+  pluginOptions?: Record<string, unknown>
+}
+
+/**
+ * Plugin-specific verify options
+ */
+export interface PluginVerifyOptions {
+  /** Project path */
+  projectPath: string
+
+  /** Package name to verify */
+  packageName: string
+
+  /** Version to verify */
+  version: string
+
+  /** Expected package URL */
+  expectedUrl?: string
+
+  /** Plugin-specific options */
+  pluginOptions?: Record<string, unknown>
+}
+
+/**
+ * Plugin metadata for discovery and management
+ */
+export interface PluginMetadata {
+  /** Plugin name */
+  name: string
+
+  /** Plugin version */
+  version: string
+
+  /** Plugin description */
+  description?: string
+
+  /** Plugin author */
+  author?: string
+
+  /** Supported registry name */
+  registry: string
+
+  /** Plugin homepage/repository */
+  homepage?: string
+
+  /** Minimum package-publisher version required */
+  requiresVersion?: string
 }
