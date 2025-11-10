@@ -107,7 +107,11 @@ package-publisher/
 │   └── index.ts                   # Library exports
 ├── tests/
 │   └── unit/
-│       └── NPMPlugin.test.ts      # 29 tests, 93% coverage
+│       ├── NPMPlugin.test.ts          # 29 tests, 93% coverage
+│       ├── CratesIOPlugin.test.ts     # 43 tests, Rust/crates.io
+│       ├── PyPIPlugin.test.ts         # 56 tests, Python/PyPI
+│       ├── HomebrewPlugin.test.ts     # 45 tests, Homebrew Formula
+│       └── PackagePublisher.test.ts   # 16 tests, integration
 ├── docs/
 │   ├── AGENT_INTEGRATION.md       # Claude Code integration
 │   └── PLUGIN_DEVELOPMENT.md      # Custom plugin development
@@ -181,14 +185,14 @@ npm run format
 - [x] AUTHENTICATION_FAILED error code
 - [x] PublishResult.metadata field
 
-### Phase 3: Documentation & Testing 🚧 (In Progress)
+### Phase 3: Documentation & Testing ✅ (Completed)
 
 - [x] AGENT_INTEGRATION.md
 - [x] PLUGIN_DEVELOPMENT.md
-- [ ] PackagePublisher.test.ts (Integration tests)
-- [ ] CratesIOPlugin.test.ts
-- [ ] PyPIPlugin.test.ts
-- [ ] HomebrewPlugin.test.ts
+- [x] PackagePublisher.test.ts (16 tests, integration tests)
+- [x] CratesIOPlugin.test.ts (43 tests, Rust/crates.io)
+- [x] PyPIPlugin.test.ts (56 tests, Python/PyPI)
+- [x] HomebrewPlugin.test.ts (45 tests, Homebrew Formula)
 
 ### Phase 4: Advanced Features 📋 (Planned)
 
