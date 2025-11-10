@@ -91,28 +91,29 @@ package-publisher/
 │   ├── core/
 │   │   ├── interfaces.ts          # Core type definitions
 │   │   ├── PublishStateMachine.ts # State management
-│   │   ├── ErrorHandling.ts       # Error factory
-│   │   ├── RetryManager.ts        # Retry logic
+│   │   ├── ErrorHandling.ts       # Error factory & codes
+│   │   ├── RetryManager.ts        # Retry logic with backoff
 │   │   └── PackagePublisher.ts    # Main orchestrator
 │   ├── plugins/
-│   │   ├── NPMPlugin.ts           # npm registry
-│   │   ├── CratesIOPlugin.ts      # crates.io registry
-│   │   ├── PyPIPlugin.ts          # PyPI registry (planned)
-│   │   ├── HomebrewPlugin.ts      # Homebrew (planned)
-│   │   └── MockRegistryPlugin.ts  # Testing mock
+│   │   ├── NPMPlugin.ts           # ✅ npm/npmjs.com
+│   │   ├── CratesIOPlugin.ts      # ✅ Rust/crates.io
+│   │   ├── PyPIPlugin.ts          # ✅ Python/PyPI
+│   │   └── HomebrewPlugin.ts      # ✅ Homebrew Formula
 │   ├── security/
-│   │   ├── SecureTokenManager.ts  # Token handling
-│   │   ├── SecretsScanner.ts      # Secrets detection
+│   │   ├── SecureTokenManager.ts  # Token handling & masking
+│   │   ├── SecretsScanner.ts      # 10 secret patterns
 │   │   └── SafeCommandExecutor.ts # Command injection prevention
-│   └── cli.ts                      # CLI interface
+│   ├── cli.ts                     # CLI interface (Commander.js)
+│   └── index.ts                   # Library exports
 ├── tests/
 │   └── unit/
-│       ├── NPMPlugin.test.ts
-│       ├── CratesIOPlugin.test.ts
-│       └── PackagePublisher.test.ts
+│       └── NPMPlugin.test.ts      # 29 tests, 93% coverage
 ├── docs/
-│   └── AGENT_INTEGRATION.md        # Claude Code integration guide
-├── agent-definition.yaml           # Claude Code agent definition
+│   ├── AGENT_INTEGRATION.md       # Claude Code integration
+│   └── PLUGIN_DEVELOPMENT.md      # Custom plugin development
+├── agent-definition.yaml          # Claude Code agent definition
+├── .eslintrc.js                   # TypeScript strict mode ESLint
+├── .prettierrc                    # Code formatting rules
 └── package.json
 ```
 
@@ -152,37 +153,51 @@ npm run format
 
 ## 📖 Documentation
 
-- [Agent Integration Guide](./docs/AGENT_INTEGRATION.md)
-- [Security Best Practices](./docs/SECURITY.md)
-- [Plugin Development](./docs/PLUGIN_DEVELOPMENT.md)
+- [Agent Integration Guide](./docs/AGENT_INTEGRATION.md) - Claude Code使用方法、トラブルシューティング
+- [Plugin Development](./docs/PLUGIN_DEVELOPMENT.md) - カスタムプラグイン開発ガイド
 
 ## 🛣️ Roadmap
 
-### Phase 1: MVP (Completed)
+### Phase 1: Core MVP ✅ (Completed)
 
-- [x] Core architecture (interfaces, state machine)
-- [x] Security features (token manager, secrets scanner)
-- [x] Error handling & retry logic
-- [x] CratesIOPlugin
-- [x] NPMPlugin
-- [x] CLI implementation
-- [x] Test suite
+- [x] Core architecture (interfaces, state machine, error handling)
+- [x] Security features (token manager, secrets scanner, safe executor)
+- [x] NPMPlugin (600 lines, 93% test coverage)
+- [x] CLI implementation (Commander.js)
+- [x] Test infrastructure (Jest, 29 tests)
 
-### Phase 2: Additional Registries (In Progress)
+### Phase 1.5: Quality Improvements ✅ (Completed)
 
-- [x] NPMPlugin implementation
-- [ ] NPMPlugin test suite (In Progress)
-- [ ] PyPIPlugin
+- [x] ESLint configuration (TypeScript strict mode)
+- [x] Prettier configuration
+- [x] Code formatting (consistent style)
+- [x] Test coverage reporting
+
+### Phase 2: Multi-Registry Support ✅ (Completed)
+
+- [x] CratesIOPlugin (Rust/crates.io, 470 lines)
+- [x] PyPIPlugin (Python/PyPI, 540 lines)
+- [x] HomebrewPlugin (Homebrew Formula, 450 lines)
+- [x] AUTHENTICATION_FAILED error code
+- [x] PublishResult.metadata field
+
+### Phase 3: Documentation & Testing 🚧 (In Progress)
+
+- [x] AGENT_INTEGRATION.md
+- [x] PLUGIN_DEVELOPMENT.md
+- [ ] PackagePublisher.test.ts (Integration tests)
+- [ ] CratesIOPlugin.test.ts
+- [ ] PyPIPlugin.test.ts
+- [ ] HomebrewPlugin.test.ts
+
+### Phase 4: Advanced Features 📋 (Planned)
+
 - [ ] Configuration file support (.publish-config.yaml)
-- [ ] CI/CD integration examples
-
-### Phase 3: Advanced Features (Planned)
-
-- [ ] HomebrewPlugin
 - [ ] Batch publishing to multiple registries
-- [ ] Pre-publish hooks
-- [ ] Post-publish notifications (Slack, Discord)
-- [ ] Analytics & reporting
+- [ ] Pre-publish & post-publish hooks
+- [ ] Notifications (Slack, Discord, Email)
+- [ ] CI/CD integration examples (GitHub Actions, GitLab CI)
+- [ ] Analytics & reporting dashboard
 
 ## 🤝 Contributing
 
@@ -194,9 +209,9 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ## 🔗 Links
 
-- [GitHub Repository](#) (TBD)
-- [npm Package](#) (TBD)
-- [Documentation](#) (TBD)
+- [GitHub Repository](https://github.com/sanae-abe/package-publisher)
+- [Issues](https://github.com/sanae-abe/package-publisher/issues)
+- [Discussions](https://github.com/sanae-abe/package-publisher/discussions)
 
 ## 🙏 Acknowledgments
 

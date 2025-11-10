@@ -1,0 +1,770 @@
+# Plugin Development Guide
+
+package-publisherのカスタムレジストリプラグインを開発するためのガイドです。
+
+## 📋 目次
+
+- [概要](#概要)
+- [プラグインアーキテクチャ](#プラグインアーキテクチャ)
+- [RegistryPluginインターフェース](#registrypluginインターフェース)
+- [実装ガイド](#実装ガイド)
+- [テスト](#テスト)
+- [サンプルプラグイン](#サンプルプラグイン)
+- [ベストプラクティス](#ベストプラクティス)
+
+## 概要
+
+package-publisherは、プラグインアーキテクチャを採用しており、新しいパッケージレジストリへの対応を容易に追加できます。
+
+### プラグインの責務
+
+1. **検出**: プロジェクトが対象レジストリに対応しているか判定
+2. **検証**: パッケージメタデータ、テスト、Lintの実行
+3. **Dry-run**: 公開のシミュレーション
+4. **公開**: 実際のパッケージ公開
+5. **検証**: 公開後の確認
+6. **ロールバック**: 公開の取り消し（オプション）
+
+### 既存プラグイン
+
+参考実装として以下のプラグインが利用可能：
+
+- `NPMPlugin`: npm/npmjs.com
+- `CratesIOPlugin`: Rust/crates.io
+- `PyPIPlugin`: Python/PyPI
+- `HomebrewPlugin`: Homebrew
+
+## プラグインアーキテクチャ
+
+### 全体構成
+
+```
+package-publisher/
+├── src/
+│   ├── core/
+│   │   ├── interfaces.ts       # RegistryPlugin interface
+│   │   ├── PackagePublisher.ts # Orchestrator
+│   │   └── ...
+│   ├── plugins/
+│   │   ├── NPMPlugin.ts        # npm実装
+│   │   ├── CratesIOPlugin.ts   # crates.io実装
+│   │   └── YourPlugin.ts       # あなたのプラグイン
+│   └── security/
+│       ├── SafeCommandExecutor.ts
+│       └── ...
+└── tests/
+    └── unit/
+        └── YourPlugin.test.ts
+```
+
+### ライフサイクル
+
+```mermaid
+graph TD
+    A[detect] --> B{対応している?}
+    B -->|Yes| C[validate]
+    B -->|No| Z[終了]
+    C --> D[dryRun]
+    D --> E{成功?}
+    E -->|Yes| F[publish]
+    E -->|No| Z
+    F --> G[verify]
+    G --> H{検証OK?}
+    H -->|Yes| I[完了]
+    H -->|No| J[rollback]
+```
+
+## RegistryPluginインターフェース
+
+すべてのプラグインは`RegistryPlugin`インターフェースを実装する必要があります。
+
+### 完全な型定義
+
+```typescript
+export interface RegistryPlugin {
+  // 識別情報
+  readonly name: string
+  readonly version: string
+
+  // 必須メソッド
+  detect(projectPath: string): Promise<boolean>
+  validate(): Promise<ValidationResult>
+  dryRun(): Promise<DryRunResult>
+  publish(options?: PublishOptions): Promise<PublishResult>
+  verify(): Promise<VerificationResult>
+
+  // オプショナルメソッド
+  rollback?(version: string): Promise<RollbackResult>
+}
+```
+
+### 各メソッドの詳細
+
+#### `detect(projectPath: string): Promise<boolean>`
+
+プロジェクトが対象レジストリに対応しているか判定します。
+
+**パラメータ**:
+- `projectPath`: プロジェクトルートディレクトリの絶対パス
+
+**戻り値**:
+- `true`: 対応している
+- `false`: 対応していない
+
+**実装例**:
+```typescript
+async detect(projectPath: string): Promise<boolean> {
+  try {
+    // package.jsonの存在確認
+    await fs.access(
+      path.join(projectPath, 'package.json'),
+      fs.constants.R_OK
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+```
+
+#### `validate(): Promise<ValidationResult>`
+
+パッケージメタデータとプロジェクトの検証を行います。
+
+**戻り値**: `ValidationResult`
+```typescript
+interface ValidationResult {
+  valid: boolean
+  errors: ValidationError[]
+  warnings: ValidationWarning[]
+  metadata?: {
+    packageName?: string
+    version?: string
+    [key: string]: any
+  }
+}
+```
+
+**実装ポイント**:
+1. メタデータファイル（package.json等）の読み込み
+2. 必須フィールドの検証
+3. バージョン形式の検証
+4. テスト実行（存在する場合）
+5. Lint実行（存在する場合）
+
+#### `dryRun(): Promise<DryRunResult>`
+
+公開のシミュレーションを実行します。
+
+**戻り値**: `DryRunResult`
+```typescript
+interface DryRunResult {
+  success: boolean
+  output: string
+  estimatedSize?: string
+  errors?: ValidationError[]
+}
+```
+
+**実装例**:
+```typescript
+async dryRun(): Promise<DryRunResult> {
+  try {
+    const result = await this.executor.execSafe(
+      'npm',
+      ['publish', '--dry-run'],
+      { cwd: this.projectPath }
+    )
+    return {
+      success: true,
+      output: result.stdout + result.stderr
+    }
+  } catch (error) {
+    return {
+      success: false,
+      output: (error as Error).message,
+      errors: [...]
+    }
+  }
+}
+```
+
+#### `publish(options?: PublishOptions): Promise<PublishResult>`
+
+実際のパッケージ公開を実行します。
+
+**パラメータ**: `PublishOptions`
+```typescript
+interface PublishOptions {
+  dryRun?: boolean
+  nonInteractive?: boolean
+  otp?: string         // 2FA OTP
+  tag?: string         // dist-tag, feature flag
+  access?: 'public' | 'restricted'
+  resume?: boolean
+  [key: string]: any   // Plugin-specific options
+}
+```
+
+**戻り値**: `PublishResult`
+```typescript
+interface PublishResult {
+  success: boolean
+  version?: string
+  packageUrl?: string
+  output?: string
+  error?: string
+  metadata?: Record<string, any>
+}
+```
+
+#### `verify(): Promise<VerificationResult>`
+
+公開されたパッケージをレジストリAPIで検証します。
+
+**戻り値**: `VerificationResult`
+```typescript
+interface VerificationResult {
+  verified: boolean
+  version?: string
+  url?: string
+  error?: string
+  metadata?: Record<string, any>
+}
+```
+
+**実装例**:
+```typescript
+async verify(): Promise<VerificationResult> {
+  const packageName = this.packageJson!.name
+  const expectedVersion = this.packageJson!.version
+
+  const response = await fetch(
+    `https://registry.npmjs.org/${packageName}`
+  )
+
+  if (!response.ok) {
+    return {
+      verified: false,
+      error: `パッケージが見つかりません`
+    }
+  }
+
+  const data = await response.json()
+  if (!data.versions[expectedVersion]) {
+    return {
+      verified: false,
+      error: `バージョン ${expectedVersion} が見つかりません`
+    }
+  }
+
+  return {
+    verified: true,
+    version: expectedVersion,
+    url: `https://www.npmjs.com/package/${packageName}`
+  }
+}
+```
+
+#### `rollback(version: string): Promise<RollbackResult>` (オプション)
+
+公開されたバージョンをロールバックします。
+
+**パラメータ**:
+- `version`: ロールバック対象のバージョン
+
+**戻り値**: `RollbackResult`
+```typescript
+interface RollbackResult {
+  success: boolean
+  message: string
+  error?: string
+}
+```
+
+**実装注意点**:
+- レジストリがロールバックをサポートしていない場合は実装不要
+- サポートしている場合も制限事項を明記（npmは72時間以内のみunpublish可能等）
+
+## 実装ガイド
+
+### ステップ1: プラグインクラスの作成
+
+```typescript
+// src/plugins/MyRegistryPlugin.ts
+import {
+  RegistryPlugin,
+  ValidationResult,
+  DryRunResult,
+  PublishResult,
+  VerificationResult,
+  RollbackResult,
+  ValidationError,
+  ValidationWarning,
+  PublishOptions
+} from '../core/interfaces'
+import { SafeCommandExecutor } from '../security/SafeCommandExecutor'
+import { ErrorFactory } from '../core/ErrorHandling'
+import { RetryManager } from '../core/RetryManager'
+import * as fs from 'fs/promises'
+import * as path from 'path'
+
+// グローバルfetch (Node.js 18+)
+declare const fetch: typeof globalThis.fetch
+
+export class MyRegistryPlugin implements RegistryPlugin {
+  readonly name = 'my-registry'
+  readonly version = '1.0.0'
+
+  private executor: SafeCommandExecutor
+  private retryManager: RetryManager
+  private metadataPath: string
+  private metadata?: any
+
+  constructor(
+    private projectPath: string,
+    executor?: SafeCommandExecutor
+  ) {
+    this.metadataPath = path.join(projectPath, 'metadata.json')
+    this.executor = executor || new SafeCommandExecutor()
+    this.retryManager = new RetryManager()
+  }
+
+  // 各メソッドを実装...
+}
+```
+
+### ステップ2: detectメソッド実装
+
+```typescript
+async detect(projectPath: string): Promise<boolean> {
+  try {
+    // 検出ロジック: メタデータファイルの存在確認
+    await fs.access(
+      path.join(projectPath, 'metadata.json'),
+      fs.constants.R_OK
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+```
+
+### ステップ3: validateメソッド実装
+
+```typescript
+async validate(): Promise<ValidationResult> {
+  const errors: ValidationError[] = []
+  const warnings: ValidationWarning[] = []
+
+  try {
+    // 1. メタデータ読み込み
+    const content = await fs.readFile(this.metadataPath, 'utf-8')
+    this.metadata = JSON.parse(content)
+
+    // 2. 必須フィールド検証
+    if (!this.metadata.name) {
+      errors.push({
+        field: 'name',
+        message: 'nameは必須です',
+        severity: 'error'
+      })
+    }
+
+    if (!this.metadata.version) {
+      errors.push({
+        field: 'version',
+        message: 'versionは必須です',
+        severity: 'error'
+      })
+    }
+
+    // 3. バージョン形式検証
+    if (this.metadata.version && !this.isValidVersion(this.metadata.version)) {
+      errors.push({
+        field: 'version',
+        message: '無効なバージョン形式です',
+        severity: 'error'
+      })
+    }
+
+    // 4. テスト実行（オプション）
+    try {
+      await this.executor.execSafe('npm', ['test'], {
+        cwd: this.projectPath
+      })
+    } catch (error) {
+      errors.push({
+        field: 'tests',
+        message: `テスト失敗: ${(error as Error).message}`,
+        severity: 'error'
+      })
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      metadata: {
+        packageName: this.metadata.name,
+        version: this.metadata.version
+      }
+    }
+  } catch (error) {
+    throw ErrorFactory.create(
+      'VALIDATION_FAILED',
+      this.name,
+      `検証に失敗: ${(error as Error).message}`
+    )
+  }
+}
+
+private isValidVersion(version: string): boolean {
+  // SemVer検証ロジック
+  const semverRegex = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
+  return semverRegex.test(version)
+}
+```
+
+### ステップ4: その他メソッド実装
+
+`dryRun`, `publish`, `verify`, `rollback`も同様のパターンで実装します。
+
+### ステップ5: エクスポート
+
+```typescript
+// src/index.ts
+export { MyRegistryPlugin } from './plugins/MyRegistryPlugin'
+```
+
+### ステップ6: 登録
+
+```typescript
+// src/cli.ts またはユーザーコード
+import { MyRegistryPlugin } from './plugins/MyRegistryPlugin'
+
+const publisher = new PackagePublisher(projectPath)
+publisher.registerPlugin(new MyRegistryPlugin(projectPath))
+```
+
+## テスト
+
+### テストファイルの作成
+
+```typescript
+// tests/unit/MyRegistryPlugin.test.ts
+import { MyRegistryPlugin } from '../../src/plugins/MyRegistryPlugin'
+import { SafeCommandExecutor } from '../../src/security/SafeCommandExecutor'
+import * as fs from 'fs/promises'
+import * as path from 'path'
+
+jest.mock('../../src/security/SafeCommandExecutor')
+jest.mock('fs/promises')
+
+global.fetch = jest.fn() as jest.Mock
+
+describe('MyRegistryPlugin', () => {
+  let plugin: MyRegistryPlugin
+  let mockExecutor: jest.Mocked<SafeCommandExecutor>
+  const testProjectPath = '/test/project'
+
+  beforeEach(() => {
+    mockExecutor = new SafeCommandExecutor() as jest.Mocked<SafeCommandExecutor>
+    plugin = new MyRegistryPlugin(testProjectPath, mockExecutor)
+    jest.clearAllMocks()
+  })
+
+  describe('detect', () => {
+    it('metadata.jsonが存在する場合はtrueを返す', async () => {
+      (fs.access as jest.Mock).mockResolvedValue(undefined)
+
+      const result = await plugin.detect(testProjectPath)
+
+      expect(result).toBe(true)
+    })
+
+    it('metadata.jsonが存在しない場合はfalseを返す', async () => {
+      (fs.access as jest.Mock).mockRejectedValue(new Error('ENOENT'))
+
+      const result = await plugin.detect(testProjectPath)
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('validate', () => {
+    it('有効なメタデータの場合は検証成功', async () => {
+      const validMetadata = {
+        name: 'my-package',
+        version: '1.0.0'
+      }
+
+      (fs.readFile as jest.Mock).mockResolvedValue(
+        JSON.stringify(validMetadata)
+      )
+
+      mockExecutor.execSafe.mockResolvedValue({
+        stdout: '',
+        stderr: '',
+        exitCode: 0
+      })
+
+      const result = await plugin.validate()
+
+      expect(result.valid).toBe(true)
+      expect(result.errors).toHaveLength(0)
+    })
+
+    // その他のテストケース...
+  })
+
+  // publish, verify, rollbackのテスト...
+})
+```
+
+### テストカバレッジ目標
+
+- **Statement Coverage**: 80%以上
+- **Branch Coverage**: 80%以上
+- **Function Coverage**: 80%以上
+
+```bash
+# カバレッジレポート生成
+npm run test:coverage
+```
+
+## サンプルプラグイン
+
+最小限のプラグイン実装例：
+
+```typescript
+import {
+  RegistryPlugin,
+  ValidationResult,
+  DryRunResult,
+  PublishResult,
+  VerificationResult
+} from '../core/interfaces'
+import { SafeCommandExecutor } from '../security/SafeCommandExecutor'
+import * as fs from 'fs/promises'
+import * as path from 'path'
+
+export class MinimalPlugin implements RegistryPlugin {
+  readonly name = 'minimal'
+  readonly version = '1.0.0'
+
+  constructor(
+    private projectPath: string,
+    private executor = new SafeCommandExecutor()
+  ) {}
+
+  async detect(projectPath: string): Promise<boolean> {
+    try {
+      await fs.access(path.join(projectPath, 'metadata.json'))
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async validate(): Promise<ValidationResult> {
+    return {
+      valid: true,
+      errors: [],
+      warnings: []
+    }
+  }
+
+  async dryRun(): Promise<DryRunResult> {
+    return {
+      success: true,
+      output: 'Dry-run simulation successful'
+    }
+  }
+
+  async publish(): Promise<PublishResult> {
+    return {
+      success: true,
+      version: '1.0.0',
+      packageUrl: 'https://example.com/package'
+    }
+  }
+
+  async verify(): Promise<VerificationResult> {
+    return {
+      verified: true,
+      version: '1.0.0',
+      url: 'https://example.com/package'
+    }
+  }
+}
+```
+
+## ベストプラクティス
+
+### 1. エラーハンドリング
+
+```typescript
+// ✅ 良い例: 詳細なエラーメッセージ
+try {
+  await this.executor.execSafe('my-cli', ['publish'], {
+    cwd: this.projectPath
+  })
+} catch (error) {
+  throw ErrorFactory.create(
+    'PUBLISH_FAILED',
+    this.name,
+    `公開に失敗しました: ${(error as Error).message}。` +
+    `ネットワーク接続とトークンを確認してください。`
+  )
+}
+
+// ❌ 悪い例: エラーを隠蔽
+try {
+  await someOperation()
+} catch {
+  // 無視
+}
+```
+
+### 2. リトライロジック
+
+```typescript
+// ✅ 良い例: RetryManagerを使用
+const result = await this.retryManager.retry(
+  async () => {
+    return await this.executor.execSafe('publish-command', args)
+  },
+  {
+    maxAttempts: 3,
+    onRetry: async (attempt, error) => {
+      console.log(`Retry ${attempt}/3: ${error.message}`)
+    }
+  }
+)
+```
+
+### 3. 認証トークン管理
+
+```typescript
+// ✅ 良い例: 環境変数から取得
+const token = process.env.MY_REGISTRY_TOKEN
+if (!token) {
+  throw ErrorFactory.create(
+    'TOKEN_MISSING',
+    this.name,
+    'MY_REGISTRY_TOKEN環境変数を設定してください'
+  )
+}
+
+// ❌ 悪い例: ハードコード
+const token = 'abc123...'
+```
+
+### 4. バージョン検証
+
+```typescript
+// ✅ 良い例: 厳密な検証
+private isValidVersion(version: string): boolean {
+  // レジストリ固有のバージョン形式を検証
+  const semverRegex = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
+  return semverRegex.test(version)
+}
+```
+
+### 5. Dry-runの活用
+
+```typescript
+// ✅ 良い例: Dry-runで本番コマンドと同じ検証
+async dryRun(): Promise<DryRunResult> {
+  // 本番と同じコマンド（--dry-runフラグ付き）
+  const result = await this.executor.execSafe(
+    'publish-command',
+    ['--dry-run'],
+    { cwd: this.projectPath }
+  )
+  return {
+    success: true,
+    output: result.stdout
+  }
+}
+```
+
+### 6. メタデータのキャッシング
+
+```typescript
+// ✅ 良い例: 一度読み込んだメタデータをキャッシュ
+private async loadMetadata(): Promise<void> {
+  if (this.metadata) {
+    return // Already loaded
+  }
+
+  const content = await fs.readFile(this.metadataPath, 'utf-8')
+  this.metadata = JSON.parse(content)
+}
+```
+
+### 7. 型安全性
+
+```typescript
+// ✅ 良い例: 型定義を明示
+interface MyMetadata {
+  name: string
+  version: string
+  description?: string
+}
+
+private metadata?: MyMetadata
+
+// ❌ 悪い例: any型の多用
+private metadata?: any
+```
+
+### 8. ドキュメント
+
+```typescript
+/**
+ * Validates package metadata and runs tests
+ *
+ * @returns ValidationResult with errors and warnings
+ * @throws PublishError if metadata file cannot be read
+ */
+async validate(): Promise<ValidationResult> {
+  // Implementation...
+}
+```
+
+## チェックリスト
+
+プラグイン実装完了前に以下を確認：
+
+- [ ] `RegistryPlugin`インターフェース完全実装
+- [ ] `detect`メソッドが正確に動作
+- [ ] `validate`で必須フィールドを検証
+- [ ] バージョン形式の検証
+- [ ] エラーハンドリングの実装
+- [ ] テストカバレッジ80%以上
+- [ ] エラーメッセージが明確
+- [ ] 環境変数でトークン管理
+- [ ] Dry-run動作確認
+- [ ] ドキュメントコメント記載
+
+## 参考リソース
+
+- [NPMPlugin実装](../src/plugins/NPMPlugin.ts) - 最も完成度の高い実装
+- [CratesIOPlugin実装](../src/plugins/CratesIOPlugin.ts) - TOML解析の例
+- [PyPIPlugin実装](../src/plugins/PyPIPlugin.ts) - 複数メタデータ形式対応の例
+- [HomebrewPlugin実装](../src/plugins/HomebrewPlugin.ts) - Git統合の例
+
+## サポート
+
+質問や問題がある場合：
+
+- **Issues**: https://github.com/sanae-abe/package-publisher/issues
+- **Discussions**: https://github.com/sanae-abe/package-publisher/discussions
+
+---
+
+**Last Updated**: 2025-01-10
+**Version**: 0.1.0
