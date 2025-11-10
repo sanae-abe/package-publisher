@@ -74,9 +74,6 @@ jobs:
           # python -m build
           # cargo build --release
 
-      - name: Install package-publisher
-        run: npm install -g package-publisher
-
       - name: Publish to multiple registries
         env:
           # npm
@@ -98,8 +95,8 @@ jobs:
             SEQUENTIAL_FLAG="--sequential"
           fi
 
-          # バッチ公開実行
-          package-publisher publish \
+          # ローカルビルドしたCLIを使用
+          node dist/cli.js publish \
             --registries $REGISTRIES \
             --non-interactive \
             --continue-on-error \

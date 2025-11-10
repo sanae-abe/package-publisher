@@ -48,9 +48,6 @@ jobs:
       - name: Build package
         run: npm run build
 
-      - name: Install package-publisher
-        run: npm install -g package-publisher
-
       # オプション: package.jsonのバージョンを更新
       - name: Update package version
         if: github.event.inputs.version
@@ -63,8 +60,8 @@ jobs:
           # セキュリティ: 環境変数経由でトークンを安全に渡す
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # 非対話モードで公開
-          package-publisher publish \
+          # ローカルビルドしたCLIを使用
+          node dist/cli.js publish \
             --registry npm \
             --non-interactive \
             --tag latest \
