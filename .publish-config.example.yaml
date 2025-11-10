@@ -1,0 +1,208 @@
+# Example configuration file for package-publisher
+# Copy this file to .publish-config.yaml and customize for your project
+
+version: "1.0"
+
+# Extend from base configuration (optional)
+# extends: "~/.publish-config-base.yaml"
+
+# Project settings
+project:
+  # Package name (optional, auto-detected from package.json/Cargo.toml etc.)
+  # name: "my-awesome-package"
+
+  # Default registry to publish (optional, auto-detect if not specified)
+  defaultRegistry: "npm"
+
+# Registry-specific configurations
+registries:
+  # npm configuration
+  npm:
+    enabled: true
+    tag: "latest"
+    access: "public"  # public | restricted
+    otp:
+      required: false
+      prompt: "runtime"  # Only "runtime" is supported
+
+  # Rust/crates.io configuration
+  crates:
+    enabled: true
+    features:
+      - "default"
+      # - "additional-feature"
+
+  # Python/PyPI configuration
+  pypi:
+    enabled: true
+    repository: "pypi"  # pypi | testpypi
+
+  # Homebrew configuration
+  homebrew:
+    enabled: true
+    # tap: "myuser/mytap"  # Optional, auto-detected
+
+# Security settings
+security:
+  # Environment variable expansion
+  envVarExpansion:
+    enabled: true
+    allowedPrefixes:
+      - "PUBLISH_"
+      - "NPM_"
+      - "CARGO_"
+      - "PYPI_"
+      - "HOMEBREW_"
+      - "SLACK_WEBHOOK_"
+    forbiddenPatterns:
+      - ".*secret.*"
+      - ".*password.*"
+      - ".*key.*"
+      - ".*token.*"
+
+  # Secrets scanning
+  secretsScanning:
+    enabled: true
+    ignorePatterns:
+      - pattern: "*.test.ts"
+        pathPrefix: "./tests/"
+      - pattern: "*.spec.js"
+        pathPrefix: "./tests/"
+    rejectTraversal: true
+
+  # Allowed commands (command injection prevention)
+  allowedCommands:
+    npm:
+      executable: "/usr/local/bin/npm"
+      allowedArgs:
+        - "publish"
+        - "pack"
+        - "--dry-run"
+        - "--tag"
+        - "--access"
+        - "--otp"
+      forbiddenArgs:
+        - "&"
+        - "|"
+        - ";"
+        - "$("
+
+    cargo:
+      executable: "/usr/local/bin/cargo"
+      allowedArgs:
+        - "publish"
+        - "--dry-run"
+        - "--features"
+        - "check"
+        - "test"
+        - "clippy"
+
+    python:
+      executable: "/usr/local/bin/python3"
+      allowedArgs:
+        - "-m"
+        - "build"
+        - "pytest"
+
+    twine:
+      executable: "/usr/local/bin/twine"
+      allowedArgs:
+        - "upload"
+        - "check"
+        - "--repository"
+        - "--repository-url"
+
+    brew:
+      executable: "/usr/local/bin/brew"
+      allowedArgs:
+        - "audit"
+        - "install"
+        - "info"
+        - "--strict"
+        - "--build-from-source"
+
+    git:
+      executable: "/usr/bin/git"
+      allowedArgs:
+        - "add"
+        - "commit"
+        - "push"
+        - "-m"
+        - "status"
+
+# Pre/Post-publish hooks
+hooks:
+  # Pre-build hooks (run before building)
+  preBuild:
+    - command: "npm run test"
+      allowedCommands: ["npm"]
+      timeout: 300
+      workingDirectory: "./"
+
+  # Pre-publish hooks (run before publishing)
+  prePublish:
+    - command: "npm run lint"
+      allowedCommands: ["npm"]
+      timeout: 120
+      workingDirectory: "./"
+
+  # Post-publish hooks (run after successful publish)
+  postPublish:
+    - command: "git tag v${VERSION}"
+      allowedCommands: ["git"]
+      timeout: 30
+      workingDirectory: "./"
+
+  # Error handling hooks (run on publish failure)
+  # onError:
+  #   - command: "slack-notify 'Publish failed'"
+  #     allowedCommands: ["slack-notify"]
+  #     timeout: 30
+
+# Publish options
+publish:
+  # Dry-run behavior: "first" | "always" | "never"
+  # - "first": Run dry-run before actual publish (default)
+  # - "always": Only run dry-run, never publish
+  # - "never": Skip dry-run, publish immediately
+  dryRun: "first"
+
+  # Confirm before publish (default: true in interactive mode)
+  confirm: true
+
+  # Verify after publish (default: true)
+  verify: true
+
+  # Interactive mode (default: true)
+  interactive: true
+
+# Custom validation rules (optional)
+validation:
+  rules:
+    - name: "enforce-version-prefix"
+      pattern: "^v?\\d+\\.\\d+\\.\\d+"
+      field: "project.version"
+      severity: "error"
+      errorMessage: "バージョンは v1.0.0 形式である必要があります"
+
+    - name: "require-description"
+      pattern: ".{10,}"
+      field: "project.description"
+      severity: "warning"
+      errorMessage: "説明文は10文字以上推奨です"
+
+# Notifications (Phase 4-4, not yet implemented)
+# notifications:
+#   enabled: false
+#   slack:
+#     webhookUrl: "${SLACK_WEBHOOK_URL}"
+#   email:
+#     recipients:
+#       - "team@example.com"
+
+# Plugins (Phase 4-5, not yet implemented)
+# plugins:
+#   - name: "package-publisher-plugin-custom-registry"
+#     version: "^1.0.0"
+#     config:
+#       registryUrl: "https://registry.example.com"

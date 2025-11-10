@@ -1,0 +1,17 @@
+# Minimal configuration example for package-publisher
+# This is the simplest possible configuration
+
+version: "1.0"
+
+# Just specify which registries to use
+registries:
+  npm:
+    enabled: true
+    tag: "latest"
+    access: "public"
+
+# All other settings use defaults:
+# - Security: enabled by default
+# - Publish: interactive with dry-run first
+# - Hooks: none
+# - Validation: none

@@ -25,6 +25,7 @@ program
   .option('--otp <code>', '2FA one-time password (npm)')
   .option('--tag <name>', 'Publish with tag (default: latest)')
   .option('--access <level>', 'Access level for scoped packages (public|restricted)')
+  .option('-c, --config <path>', 'Custom configuration file path')
   .action(async (options) => {
     const projectPath = process.cwd()
 
@@ -38,6 +39,20 @@ program
       publisher.registerPlugin(new CratesIOPlugin(projectPath))
       publisher.registerPlugin(new PyPIPlugin(projectPath))
       publisher.registerPlugin(new HomebrewPlugin(projectPath))
+
+      // Load configuration (CLI args take priority)
+      const cliArgs: any = {}
+      if (options.registry) {
+        cliArgs.project = { defaultRegistry: options.registry }
+      }
+      if (options.dryRunOnly !== undefined) {
+        cliArgs.publish = { dryRun: options.dryRunOnly ? 'always' : 'never' }
+      }
+      if (options.nonInteractive !== undefined) {
+        cliArgs.publish = { ...cliArgs.publish, interactive: !options.nonInteractive }
+      }
+
+      await publisher.loadConfig(cliArgs)
 
       const publishOptions = {
         registry: options.registry,

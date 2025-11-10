@@ -194,12 +194,22 @@ npm run format
 - [x] PyPIPlugin.test.ts (56 tests, Python/PyPI)
 - [x] HomebrewPlugin.test.ts (45 tests, Homebrew Formula)
 
-### Phase 4: Advanced Features 📋 (Planned)
+### Phase 4: Advanced Features 🚧 (In Progress)
 
-- [ ] Configuration file support (.publish-config.yaml)
+#### Phase 4-1: Configuration File Support ✅ (Completed)
+
+- [x] YAML configuration file support (.publish-config.yaml)
+- [x] Configuration priority system (CLI > Env > Project > Global > Default)
+- [x] Environment variable expansion with security restrictions
+- [x] Configuration validation with detailed error messages
+- [x] ConfigLoader.test.ts (25 tests, comprehensive validation)
+
+#### Remaining Phase 4 Features
+
 - [ ] Batch publishing to multiple registries
-- [ ] Pre-publish & post-publish hooks
-- [ ] Notifications (Slack, Discord, Email)
+- [ ] Pre-publish & post-publish hooks (type definitions ready)
+- [ ] Notifications (Slack, Discord, Email) (type definitions ready)
+- [ ] Plugin system (type definitions ready)
 - [ ] CI/CD integration examples (GitHub Actions, GitLab CI)
 - [ ] Analytics & reporting dashboard
 

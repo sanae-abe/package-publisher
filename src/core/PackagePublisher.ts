@@ -3,6 +3,8 @@ import { PublishStateMachine } from './PublishStateMachine'
 import { SecureTokenManager } from '../security/SecureTokenManager'
 import { SecretsScanner } from '../security/SecretsScanner'
 import { ErrorFactory } from './ErrorHandling'
+import { ConfigLoader } from './ConfigLoader'
+import { PublishConfig } from './PublishConfig'
 import * as readline from 'readline'
 
 /**
@@ -13,11 +15,40 @@ export class PackagePublisher {
   private stateMachine: PublishStateMachine
   private tokenManager: SecureTokenManager
   private secretsScanner: SecretsScanner
+  private config: PublishConfig | null = null
 
   constructor(private projectPath: string) {
     this.stateMachine = new PublishStateMachine(projectPath)
     this.tokenManager = new SecureTokenManager()
     this.secretsScanner = new SecretsScanner()
+  }
+
+  /**
+   * Load configuration from file
+   */
+  async loadConfig(cliArgs?: Partial<PublishConfig>): Promise<void> {
+    this.config = await ConfigLoader.load({
+      projectPath: this.projectPath,
+      cliArgs
+    })
+
+    // Validate configuration
+    const validation = ConfigLoader.validate(this.config)
+    if (!validation.valid) {
+      const formatted = ConfigLoader.formatValidationResult(validation)
+      console.error(formatted)
+      throw ErrorFactory.create(
+        'VALIDATION_FAILED',
+        'config',
+        '設定ファイルの検証に失敗しました'
+      )
+    }
+
+    // Show warnings if any
+    if (validation.warnings.length > 0) {
+      const formatted = ConfigLoader.formatValidationResult(validation)
+      console.warn(formatted)
+    }
   }
 
   /**
@@ -51,6 +82,14 @@ export class PackagePublisher {
     const warnings: string[] = []
 
     try {
+      // Load config if not already loaded
+      if (!this.config) {
+        await this.loadConfig()
+      }
+
+      // Merge CLI options with config (CLI takes priority)
+      const effectiveOptions = this.mergeOptionsWithConfig(options)
+
       // 1. Restore state if resume requested
       if (options.resume) {
         await this.stateMachine.transition('INITIAL')
@@ -80,7 +119,7 @@ export class PackagePublisher {
       }
 
       // Use specified registry or first detected
-      const registryName = options.registry || detectedRegistries[0]
+      const registryName = effectiveOptions.registry || detectedRegistries[0]
       const plugin = this.plugins.get(registryName)
 
       if (!plugin) {
@@ -94,30 +133,33 @@ export class PackagePublisher {
       console.log(`\n📦 レジストリ検出: ${registryName}`)
       console.log(`検出されたレジストリ: ${detectedRegistries.join(', ')}\n`)
 
-      // 3. Security scan
-      console.log('🔍 セキュリティスキャン実行中...')
-      const scanReport = await this.secretsScanner.scanProject(this.projectPath)
+      // 3. Security scan (if enabled)
+      const secretsScanningEnabled = this.config?.security?.secretsScanning?.enabled !== false
+      if (secretsScanningEnabled) {
+        console.log('🔍 セキュリティスキャン実行中...')
+        const scanReport = await this.secretsScanner.scanProject(this.projectPath)
 
-      if (scanReport.hasSecrets) {
-        const formatted = SecretsScanner.formatReport(scanReport)
-        console.error(formatted)
+        if (scanReport.hasSecrets) {
+          const formatted = SecretsScanner.formatReport(scanReport)
+          console.error(formatted)
 
-        if (!options.nonInteractive) {
-          const proceed = await this.confirm(
-            '⚠️  潜在的なシークレットが検出されました。続行しますか？'
-          )
-          if (!proceed) {
-            throw ErrorFactory.create(
-              'SECRETS_DETECTED',
-              registryName,
-              'シークレットが検出されたため、公開を中止しました'
+          if (!effectiveOptions.nonInteractive) {
+            const proceed = await this.confirm(
+              '⚠️  潜在的なシークレットが検出されました。続行しますか？'
             )
+            if (!proceed) {
+              throw ErrorFactory.create(
+                'SECRETS_DETECTED',
+                registryName,
+                'シークレットが検出されたため、公開を中止しました'
+              )
+            }
           }
-        }
 
-        warnings.push(`${scanReport.findings.length}件の潜在的なシークレットを検出`)
-      } else {
-        console.log('✅ セキュリティスキャン完了: 問題なし\n')
+          warnings.push(`${scanReport.findings.length}件の潜在的なシークレットを検出`)
+        } else {
+          console.log('✅ セキュリティスキャン完了: 問題なし\n')
+        }
       }
 
       // 4. Validation
@@ -148,7 +190,8 @@ export class PackagePublisher {
       const packageVersion = validationResult.metadata?.version
 
       // 5. Dry-run (if not skipped)
-      if (!options.dryRun && !options.resume) {
+      const shouldSkipDryRun = effectiveOptions.dryRun || options.resume || this.config?.publish?.dryRun === 'never'
+      if (!shouldSkipDryRun) {
         await this.stateMachine.transition('DRY_RUN')
         console.log('🧪 Dry-run 実行中...')
 
@@ -173,7 +216,7 @@ export class PackagePublisher {
       }
 
       // Return if dry-run only
-      if (options.dryRun) {
+      if (effectiveOptions.dryRun) {
         return {
           success: true,
           registry: registryName,
@@ -187,7 +230,8 @@ export class PackagePublisher {
       }
 
       // 6. Confirmation (interactive mode)
-      if (!options.nonInteractive && !options.resume) {
+      const shouldConfirm = !effectiveOptions.nonInteractive && !options.resume && (this.config?.publish?.confirm !== false)
+      if (shouldConfirm) {
         await this.stateMachine.transition('CONFIRMING')
 
         console.log('📋 公開前チェックリスト:')
@@ -221,7 +265,7 @@ export class PackagePublisher {
       await this.stateMachine.transition('PUBLISHING', { version: packageVersion })
       console.log('📤 公開中...')
 
-      const publishResult = await plugin.publish(options)
+      const publishResult = await plugin.publish(effectiveOptions)
 
       if (!publishResult.success) {
         throw ErrorFactory.create(
@@ -233,19 +277,23 @@ export class PackagePublisher {
 
       console.log('✅ 公開完了\n')
 
-      // 8. Verify
-      await this.stateMachine.transition('VERIFYING')
-      console.log('🔍 公開確認中...')
+      // 8. Verify (if enabled)
+      const shouldVerify = this.config?.publish?.verify !== false
+      let verifyResult: any = null
+      if (shouldVerify) {
+        await this.stateMachine.transition('VERIFYING')
+        console.log('🔍 公開確認中...')
 
-      const verifyResult = await plugin.verify()
+        verifyResult = await plugin.verify()
 
-      if (!verifyResult.verified) {
-        warnings.push(`検証に失敗: ${verifyResult.error}`)
-        console.warn('⚠️  検証に失敗しました（公開自体は成功している可能性があります）')
-        console.warn(`   ${verifyResult.error}`)
-      } else {
-        console.log('✅ 公開確認完了')
-        console.log(`   URL: ${verifyResult.url}\n`)
+        if (!verifyResult.verified) {
+          warnings.push(`検証に失敗: ${verifyResult.error}`)
+          console.warn('⚠️  検証に失敗しました（公開自体は成功している可能性があります）')
+          console.warn(`   ${verifyResult.error}`)
+        } else {
+          console.log('✅ 公開確認完了')
+          console.log(`   URL: ${verifyResult.url}\n`)
+        }
       }
 
       // Success
@@ -257,7 +305,7 @@ export class PackagePublisher {
         packageName: validationResult.metadata?.packageName || 'unknown',
         version: packageVersion || 'unknown',
         publishedAt: new Date(),
-        verificationUrl: verifyResult.url,
+        verificationUrl: verifyResult?.url,
         errors,
         warnings,
         duration: Date.now() - startTime,
@@ -281,6 +329,42 @@ export class PackagePublisher {
         duration: Date.now() - startTime,
         state: 'FAILED'
       }
+    }
+  }
+
+  /**
+   * Merge CLI options with configuration (CLI takes priority)
+   */
+  private mergeOptionsWithConfig(options: PublishOptions): PublishOptions {
+    const config = this.config
+
+    // If no config loaded, return original options
+    if (!config) {
+      return options
+    }
+
+    // Determine dry-run behavior
+    let shouldDryRun = options.dryRun
+    if (shouldDryRun === undefined && config.publish?.dryRun) {
+      shouldDryRun = config.publish.dryRun === 'always'
+    }
+
+    // Determine interactive mode
+    let interactive = !options.nonInteractive
+    if (options.nonInteractive === undefined && config.publish?.interactive !== undefined) {
+      interactive = config.publish.interactive
+    }
+
+    // Determine registry
+    const registry =
+      options.registry ||
+      config.project?.defaultRegistry
+
+    return {
+      ...options,
+      dryRun: shouldDryRun,
+      nonInteractive: !interactive,
+      registry
     }
   }
 
