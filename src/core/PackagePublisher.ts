@@ -62,18 +62,24 @@ export class PackagePublisher {
   }
 
   /**
-   * Auto-detect applicable registries
+   * Auto-detect applicable registries (parallel execution for performance)
    */
   async detectRegistries(): Promise<string[]> {
-    const detected: string[] = []
-
-    for (const [name, plugin] of this.plugins) {
-      if (await plugin.detect(this.projectPath)) {
-        detected.push(name)
+    // Parallel detection for better performance with multiple plugins
+    const detectionPromises = Array.from(this.plugins.entries()).map(
+      async ([name, plugin]) => {
+        try {
+          const isDetected = await plugin.detect(this.projectPath)
+          return isDetected ? name : null
+        } catch {
+          // Ignore detection errors for individual plugins
+          return null
+        }
       }
-    }
+    )
 
-    return detected
+    const results = await Promise.all(detectionPromises)
+    return results.filter((name): name is string => name !== null)
   }
 
   /**
@@ -137,28 +143,17 @@ export class PackagePublisher {
       console.log(`検出されたレジストリ: ${detectedRegistries.join(', ')}\n`)
 
       // 3. Execute preBuild hooks (unless skipHooks is enabled)
-      if (!effectiveOptions.skipHooks && this.config?.hooks?.preBuild && this.config.hooks.preBuild.length > 0) {
-        const hookContext: HookContext = {
+      await this.executeHooksIfConfigured(
+        'preBuild',
+        {
           phase: 'preBuild',
           registry: registryName,
           version: 'unknown', // Version not yet determined
           packageName: 'unknown',
           environment: {}
-        }
-
-        const hookResult = await this.hookExecutor.executeHooks(
-          this.config.hooks.preBuild,
-          hookContext
-        )
-
-        if (!hookResult.success) {
-          throw ErrorFactory.create(
-            'PUBLISH_FAILED',
-            registryName,
-            `preBuild フックが失敗しました: ${hookResult.failedHooks.join(', ')}`
-          )
-        }
-      }
+        },
+        !!effectiveOptions.skipHooks
+      )
 
       // 4. Security scan (if enabled)
       const secretsScanningEnabled = this.config?.security?.secretsScanning?.enabled !== false
@@ -290,28 +285,17 @@ export class PackagePublisher {
       }
 
       // 8. Execute prePublish hooks (unless skipHooks is enabled)
-      if (!effectiveOptions.skipHooks && this.config?.hooks?.prePublish && this.config.hooks.prePublish.length > 0) {
-        const hookContext: HookContext = {
+      await this.executeHooksIfConfigured(
+        'prePublish',
+        {
           phase: 'prePublish',
           registry: registryName,
           version: String(packageVersion || 'unknown'),
           packageName: String(packageName || 'unknown'),
           environment: {}
-        }
-
-        const hookResult = await this.hookExecutor.executeHooks(
-          this.config.hooks.prePublish,
-          hookContext
-        )
-
-        if (!hookResult.success) {
-          throw ErrorFactory.create(
-            'PUBLISH_FAILED',
-            registryName,
-            `prePublish フックが失敗しました: ${hookResult.failedHooks.join(', ')}`
-          )
-        }
-      }
+        },
+        !!effectiveOptions.skipHooks
+      )
 
       // Return if hooks-only mode (skip actual publishing)
       if (effectiveOptions.hooksOnly) {
@@ -364,8 +348,9 @@ export class PackagePublisher {
       }
 
       // 11. Execute postPublish hooks (unless skipHooks is enabled)
-      if (!effectiveOptions.skipHooks && this.config?.hooks?.postPublish && this.config.hooks.postPublish.length > 0) {
-        const hookContext: HookContext = {
+      const postPublishResult = await this.executeHooksIfConfigured(
+        'postPublish',
+        {
           phase: 'postPublish',
           registry: registryName,
           version: String(packageVersion || 'unknown'),
@@ -373,17 +358,14 @@ export class PackagePublisher {
           environment: {
             VERIFICATION_URL: verifyResult?.url || ''
           }
-        }
+        },
+        !!effectiveOptions.skipHooks,
+        false // Don't throw on failure
+      )
 
-        const hookResult = await this.hookExecutor.executeHooks(
-          this.config.hooks.postPublish,
-          hookContext
-        )
-
-        if (!hookResult.success) {
-          warnings.push(`postPublish フックが失敗: ${hookResult.failedHooks.join(', ')}`)
-          console.warn('⚠️  postPublish フックが失敗しましたが、公開自体は成功しています')
-        }
+      if (!postPublishResult.success && postPublishResult.failedHooks) {
+        warnings.push(`postPublish フックが失敗: ${postPublishResult.failedHooks.join(', ')}`)
+        console.warn('⚠️  postPublish フックが失敗しましたが、公開自体は成功しています')
       }
 
       // Success
@@ -410,9 +392,10 @@ export class PackagePublisher {
       errors.push(err.message)
 
       // Execute onError hooks (unless skipHooks is enabled)
-      if (!options.skipHooks && this.config?.hooks?.onError && this.config.hooks.onError.length > 0) {
-        try {
-          const hookContext: HookContext = {
+      try {
+        const onErrorResult = await this.executeHooksIfConfigured(
+          'onError',
+          {
             phase: 'onError',
             registry: options.registry || 'unknown',
             version: 'unknown',
@@ -420,19 +403,16 @@ export class PackagePublisher {
             environment: {
               ERROR_MESSAGE: err.message
             }
-          }
+          },
+          !!options.skipHooks,
+          false // Don't throw on failure
+        )
 
-          const hookResult = await this.hookExecutor.executeHooks(
-            this.config.hooks.onError,
-            hookContext
-          )
-
-          if (!hookResult.success) {
-            console.warn('⚠️  onError フックも失敗しました')
-          }
-        } catch (hookError) {
-          console.error('onError フック実行中にエラーが発生:', hookError)
+        if (!onErrorResult.success) {
+          console.warn('⚠️  onError フックも失敗しました')
         }
+      } catch (hookError) {
+        console.error('onError フック実行中にエラーが発生:', hookError)
       }
 
       return {
@@ -459,29 +439,36 @@ export class PackagePublisher {
       return options
     }
 
+    // Track if any changes were made to avoid unnecessary object copy
+    let hasChanges = false
+    const merged: PublishOptions = {}
+
     // Determine dry-run behavior
-    let shouldDryRun = options.dryRun
-    if (shouldDryRun === undefined && config.publish?.dryRun) {
-      shouldDryRun = config.publish.dryRun === 'always'
+    if (options.dryRun !== undefined) {
+      merged.dryRun = options.dryRun
+    } else if (config.publish?.dryRun) {
+      merged.dryRun = config.publish.dryRun === 'always'
+      hasChanges = true
     }
 
     // Determine interactive mode
-    let interactive = !options.nonInteractive
-    if (options.nonInteractive === undefined && config.publish?.interactive !== undefined) {
-      interactive = config.publish.interactive
+    if (options.nonInteractive !== undefined) {
+      merged.nonInteractive = options.nonInteractive
+    } else if (config.publish?.interactive !== undefined) {
+      merged.nonInteractive = !config.publish.interactive
+      hasChanges = true
     }
 
     // Determine registry
-    const registry =
-      options.registry ||
-      config.project?.defaultRegistry
-
-    return {
-      ...options,
-      dryRun: shouldDryRun,
-      nonInteractive: !interactive,
-      registry
+    if (options.registry) {
+      merged.registry = options.registry
+    } else if (config.project?.defaultRegistry) {
+      merged.registry = config.project.defaultRegistry
+      hasChanges = true
     }
+
+    // Only create new object if changes were made
+    return hasChanges ? { ...options, ...merged } : options
   }
 
   /**
@@ -499,6 +486,49 @@ export class PackagePublisher {
         resolve(answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y')
       })
     })
+  }
+
+  /**
+   * Execute hooks if configured and not skipped
+   * @param phase Hook phase to execute
+   * @param context Hook execution context
+   * @param skipHooks Whether to skip hooks
+   * @param throwOnFailure Whether to throw error on hook failure (default: true)
+   * @returns Hook execution result
+   */
+  private async executeHooksIfConfigured(
+    phase: 'preBuild' | 'prePublish' | 'postPublish' | 'onError',
+    context: HookContext,
+    skipHooks: boolean,
+    throwOnFailure: boolean = true
+  ): Promise<{ success: boolean; failedHooks?: string[] }> {
+    // Early return if hooks are skipped
+    if (skipHooks) {
+      return { success: true }
+    }
+
+    // Get hooks for this phase
+    const hooks = this.config?.hooks?.[phase]
+    if (!hooks || hooks.length === 0) {
+      return { success: true }
+    }
+
+    // Execute hooks
+    const result = await this.hookExecutor.executeHooks(hooks, context)
+
+    // Handle failure based on throwOnFailure flag
+    if (!result.success) {
+      if (throwOnFailure) {
+        throw ErrorFactory.create(
+          'PUBLISH_FAILED',
+          context.registry,
+          `${phase} フックが失敗しました: ${result.failedHooks.join(', ')}`
+        )
+      }
+      return result
+    }
+
+    return result
   }
 
   /**
