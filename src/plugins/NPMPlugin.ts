@@ -28,7 +28,7 @@ interface PackageJson {
   scripts?: Record<string, string>
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export class NPMPlugin implements RegistryPlugin {
@@ -312,7 +312,7 @@ export class NPMPlugin implements RegistryPlugin {
         }
       }
 
-      const data: any = await response.json()
+      const data = await response.json() as { versions?: Record<string, unknown>; 'dist-tags'?: { latest?: string } }
 
       // Check if the expected version exists
       if (!data.versions || !data.versions[expectedVersion!]) {
@@ -469,7 +469,7 @@ export class NPMPlugin implements RegistryPlugin {
         return null
       }
 
-      const data: any = await response.json()
+      const data = await response.json() as { time?: Record<string, string> }
       const timeStr = data.time?.[version]
 
       return timeStr ? new Date(timeStr) : null

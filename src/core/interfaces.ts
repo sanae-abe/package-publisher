@@ -49,7 +49,7 @@ export interface ValidationResult {
   valid: boolean
   errors: ValidationError[]
   warnings: ValidationWarning[]
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface ValidationError {
@@ -86,7 +86,8 @@ export interface PublishOptions {
   tag?: string // npm: dist-tag, cargo: --tag
   access?: 'public' | 'restricted' // npm scoped packages
   resume?: boolean
-  [key: string]: any // Plugin-specific options
+  registry?: string
+  [key: string]: boolean | string | undefined // Plugin-specific options
 }
 
 export interface PublishResult {
@@ -95,7 +96,7 @@ export interface PublishResult {
   packageUrl?: string
   output?: string
   error?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // ============================================================================
@@ -107,7 +108,7 @@ export interface VerificationResult {
   version?: string
   url?: string
   error?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // ============================================================================
@@ -182,7 +183,7 @@ export interface StateTransition {
   from: PublishState
   to: PublishState
   timestamp: Date
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface PublishStateData {
@@ -237,7 +238,7 @@ export interface PackageMetadata {
   repository?: string
   homepage?: string
   keywords?: string[]
-  [key: string]: any // Registry-specific fields
+  [key: string]: unknown // Registry-specific fields
 }
 
 // ============================================================================

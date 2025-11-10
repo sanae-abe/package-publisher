@@ -1,4 +1,4 @@
-import { RegistryPlugin, PublishOptions, PublishReport } from './interfaces'
+import { RegistryPlugin, PublishOptions, PublishReport, VerificationResult } from './interfaces'
 import { PublishStateMachine } from './PublishStateMachine'
 import { SecureTokenManager } from '../security/SecureTokenManager'
 import { SecretsScanner } from '../security/SecretsScanner'
@@ -220,8 +220,8 @@ export class PackagePublisher {
         return {
           success: true,
           registry: registryName,
-          packageName: validationResult.metadata?.packageName || 'unknown',
-          version: packageVersion || 'unknown',
+          packageName: String(validationResult.metadata?.packageName || 'unknown'),
+          version: String(packageVersion || 'unknown'),
           errors,
           warnings,
           duration: Date.now() - startTime,
@@ -236,7 +236,7 @@ export class PackagePublisher {
 
         console.log('📋 公開前チェックリスト:')
         console.log(`  ✅ レジストリ: ${registryName}`)
-        console.log(`  ✅ バージョン: ${packageVersion}`)
+        console.log(`  ✅ バージョン: ${String(packageVersion)}`)
         console.log(`  ✅ 検証: 成功`)
         console.log(`  ✅ Dry-run: 成功`)
         if (warnings.length > 0) {
@@ -251,8 +251,8 @@ export class PackagePublisher {
           return {
             success: false,
             registry: registryName,
-            packageName: validationResult.metadata?.packageName || 'unknown',
-            version: packageVersion || 'unknown',
+            packageName: String(validationResult.metadata?.packageName || 'unknown'),
+            version: String(packageVersion || 'unknown'),
             errors: ['User cancelled'],
             warnings,
             duration: Date.now() - startTime,
@@ -279,7 +279,7 @@ export class PackagePublisher {
 
       // 8. Verify (if enabled)
       const shouldVerify = this.config?.publish?.verify !== false
-      let verifyResult: any = null
+      let verifyResult: VerificationResult | null = null
       if (shouldVerify) {
         await this.stateMachine.transition('VERIFYING')
         console.log('🔍 公開確認中...')
@@ -302,8 +302,8 @@ export class PackagePublisher {
       return {
         success: true,
         registry: registryName,
-        packageName: validationResult.metadata?.packageName || 'unknown',
-        version: packageVersion || 'unknown',
+        packageName: String(validationResult.metadata?.packageName || 'unknown'),
+        version: String(packageVersion || 'unknown'),
         publishedAt: new Date(),
         verificationUrl: verifyResult?.url,
         errors,

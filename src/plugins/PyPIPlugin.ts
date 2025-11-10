@@ -28,9 +28,9 @@ interface PyProjectToml {
     readme?: string
     requires_python?: string
     dependencies?: string[]
-    [key: string]: any
+    [key: string]: unknown
   }
-  [key: string]: any
+  [key: string]: unknown
 }
 
 interface SetupPy {
@@ -39,7 +39,7 @@ interface SetupPy {
   description?: string
   author?: string
   license?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export class PyPIPlugin implements RegistryPlugin {
@@ -327,7 +327,7 @@ export class PyPIPlugin implements RegistryPlugin {
         }
       }
 
-      const data: any = await response.json()
+      const data = await response.json() as { releases?: Record<string, unknown>; info?: { version?: string } }
 
       // Check if the expected version exists
       const releases = data.releases || {}
@@ -412,7 +412,7 @@ export class PyPIPlugin implements RegistryPlugin {
       if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
         currentSection = trimmed.slice(1, -1)
         const keys = currentSection.split('.')
-        let obj: any = toml
+        let obj: Record<string, unknown> = toml
         for (let i = 0; i < keys.length; i++) {
           const key = keys[i]
           if (i === keys.length - 1) {
@@ -420,7 +420,7 @@ export class PyPIPlugin implements RegistryPlugin {
           } else {
             obj[key] = obj[key] || {}
           }
-          obj = obj[key]
+          obj = obj[key] as Record<string, unknown>
         }
         continue
       }
@@ -429,12 +429,12 @@ export class PyPIPlugin implements RegistryPlugin {
       if (match && currentSection) {
         const [, key, value] = match
         const keys = currentSection.split('.')
-        let obj: any = toml
+        let obj: Record<string, unknown> = toml
         for (const k of keys) {
-          obj = obj[k]
+          obj = obj[k] as Record<string, unknown>
         }
 
-        let parsedValue: any = value.trim()
+        let parsedValue: string = value.trim()
         if (parsedValue.startsWith('"') && parsedValue.endsWith('"')) {
           parsedValue = parsedValue.slice(1, -1)
         }
@@ -485,7 +485,7 @@ export class PyPIPlugin implements RegistryPlugin {
 
     // Try pyproject.toml structure first
     if ('project' in this.packageMetadata && this.packageMetadata.project) {
-      const project: any = this.packageMetadata.project
+      const project = this.packageMetadata.project as Record<string, unknown>
       const value = project[field]
       if (value) {
         return typeof value === 'string' ? value : String(value)
@@ -493,7 +493,7 @@ export class PyPIPlugin implements RegistryPlugin {
     }
 
     // Try setup.py structure
-    const metadata: any = this.packageMetadata
+    const metadata = this.packageMetadata as Record<string, unknown>
     const value = metadata[field]
     return value ? (typeof value === 'string' ? value : String(value)) : undefined
   }

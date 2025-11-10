@@ -30,10 +30,10 @@ interface CargoToml {
     keywords?: string[]
     categories?: string[]
     edition?: string
-    [key: string]: any
+    [key: string]: unknown
   }
-  dependencies?: Record<string, any>
-  [key: string]: any
+  dependencies?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 export class CratesIOPlugin implements RegistryPlugin {
@@ -273,15 +273,15 @@ export class CratesIOPlugin implements RegistryPlugin {
         }
       }
 
-      const data: any = await response.json()
+      const data = await response.json() as { versions?: Array<{ num: string }>; crate?: { newest_version?: string } }
 
       // Check if the expected version exists
       const versions = data.versions || []
-      const versionExists = versions.some((v: any) => v.num === expectedVersion)
+      const versionExists = versions.some(v => v.num === expectedVersion)
 
       if (!versionExists) {
         const availableVersions: string = versions
-          .map((v: any) => String(v.num))
+          .map(v => String(v.num))
           .join(', ')
         return {
           verified: false,
@@ -292,7 +292,7 @@ export class CratesIOPlugin implements RegistryPlugin {
       // Get newest version
       const newestVersion = data.crate?.newest_version
 
-      const allVersions: string[] = versions.map((v: any) => String(v.num))
+      const allVersions: string[] = versions.map(v => String(v.num))
 
       return {
         verified: true,
@@ -363,7 +363,7 @@ export class CratesIOPlugin implements RegistryPlugin {
       if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
         currentSection = trimmed.slice(1, -1)
         const keys = currentSection.split('.')
-        let obj: any = toml
+        let obj: Record<string, unknown> = toml
         for (let i = 0; i < keys.length; i++) {
           const key = keys[i]
           if (i === keys.length - 1) {
@@ -371,7 +371,7 @@ export class CratesIOPlugin implements RegistryPlugin {
           } else {
             obj[key] = obj[key] || {}
           }
-          obj = obj[key]
+          obj = obj[key] as Record<string, unknown>
         }
         continue
       }
@@ -381,13 +381,13 @@ export class CratesIOPlugin implements RegistryPlugin {
       if (match && currentSection) {
         const [, key, value] = match
         const keys = currentSection.split('.')
-        let obj: any = toml
+        let obj: Record<string, unknown> = toml
         for (const k of keys) {
-          obj = obj[k]
+          obj = obj[k] as Record<string, unknown>
         }
 
         // Parse value
-        let parsedValue: any = value.trim()
+        let parsedValue: string | boolean | number = value.trim()
         if (parsedValue.startsWith('"') && parsedValue.endsWith('"')) {
           parsedValue = parsedValue.slice(1, -1)
         } else if (parsedValue === 'true') {

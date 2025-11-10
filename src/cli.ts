@@ -217,8 +217,8 @@ program
           }
 
           if (result.metadata) {
-            console.log(chalk.gray(`  パッケージ名: ${result.metadata.packageName}`))
-            console.log(chalk.gray(`  バージョン: ${result.metadata.version}`))
+            console.log(chalk.gray(`  パッケージ名: ${String(result.metadata.packageName)}`))
+            console.log(chalk.gray(`  バージョン: ${String(result.metadata.version)}`))
           }
         } catch (error) {
           console.error(chalk.red(`  ❌ エラー: ${(error as Error).message}`))
