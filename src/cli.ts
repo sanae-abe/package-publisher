@@ -2,6 +2,7 @@
 
 import { Command } from 'commander'
 import { PackagePublisher } from './core/PackagePublisher'
+import { BatchPublisher } from './core/BatchPublisher'
 import { NPMPlugin } from './plugins/NPMPlugin'
 import { CratesIOPlugin } from './plugins/CratesIOPlugin'
 import { PyPIPlugin } from './plugins/PyPIPlugin'
@@ -19,6 +20,10 @@ program
   .command('publish')
   .description('Publish package to registry')
   .option('-r, --registry <name>', 'Specify registry (npm, crates.io, pypi, homebrew)')
+  .option('--registries <list>', 'Comma-separated list of registries for batch publishing (e.g., npm,pypi,crates.io)')
+  .option('--sequential', 'Publish to registries sequentially instead of in parallel (batch mode only)')
+  .option('--max-concurrency <number>', 'Maximum concurrent publishes (default: 3, batch mode only)', '3')
+  .option('--continue-on-error', 'Continue publishing even if one registry fails (batch mode only)')
   .option('--dry-run-only', 'Only perform dry-run without actual publishing')
   .option('--non-interactive', 'Run in non-interactive mode (CI/CD)')
   .option('--resume', 'Resume from previous state')
@@ -32,72 +37,118 @@ program
     try {
       console.log(chalk.bold('\n📦 package-publisher\n'))
 
-      const publisher = new PackagePublisher(projectPath)
+      // Check for batch mode
+      const isBatchMode = !!options.registries
 
-      // Register all plugins
-      publisher.registerPlugin(new NPMPlugin(projectPath))
-      publisher.registerPlugin(new CratesIOPlugin(projectPath))
-      publisher.registerPlugin(new PyPIPlugin(projectPath))
-      publisher.registerPlugin(new HomebrewPlugin(projectPath))
+      if (isBatchMode) {
+        // Batch publishing mode
+        const registries = options.registries.split(',').map((r: string) => r.trim())
 
-      // Load configuration (CLI args take priority)
-      const cliArgs: any = {}
-      if (options.registry) {
-        cliArgs.project = { defaultRegistry: options.registry }
-      }
-      if (options.dryRunOnly !== undefined) {
-        cliArgs.publish = { dryRun: options.dryRunOnly ? 'always' : 'never' }
-      }
-      if (options.nonInteractive !== undefined) {
-        cliArgs.publish = { ...cliArgs.publish, interactive: !options.nonInteractive }
-      }
+        console.log(chalk.blue(`バッチ公開モード: ${registries.length}個のレジストリに公開します`))
+        console.log(chalk.gray(`レジストリ: ${registries.join(', ')}\n`))
 
-      await publisher.loadConfig(cliArgs)
+        const batchPublisher = new BatchPublisher(projectPath)
 
-      const publishOptions = {
-        registry: options.registry,
-        dryRun: options.dryRunOnly,
-        nonInteractive: options.nonInteractive,
-        resume: options.resume,
-        otp: options.otp,
-        tag: options.tag,
-        access: options.access
-      }
-
-      const result = await publisher.publish(publishOptions)
-
-      if (result.success) {
-        console.log(chalk.green.bold('\n✅ 成功！'))
-        console.log(
-          chalk.green(`パッケージ ${result.packageName}@${result.version} を公開しました`)
-        )
-        if (result.verificationUrl) {
-          console.log(chalk.blue(`URL: ${result.verificationUrl}`))
-        }
-        console.log(chalk.gray(`処理時間: ${(result.duration / 1000).toFixed(2)}秒\n`))
-
-        if (result.warnings.length > 0) {
-          console.log(chalk.yellow('⚠️  警告:'))
-          for (const warning of result.warnings) {
-            console.log(chalk.yellow(`  - ${warning}`))
-          }
+        const publishOptions = {
+          dryRun: options.dryRunOnly,
+          nonInteractive: options.nonInteractive,
+          resume: options.resume,
+          otp: options.otp,
+          tag: options.tag,
+          access: options.access
         }
 
-        process.exit(0)
+        const batchOptions = {
+          sequential: options.sequential,
+          continueOnError: options.continueOnError,
+          maxConcurrency: parseInt(options.maxConcurrency, 10),
+          publishOptions
+        }
+
+        const result = await batchPublisher.publishToMultiple(registries, batchOptions)
+
+        // Display results
+        console.log()
+        if (result.success) {
+          console.log(chalk.green.bold('✅ すべて成功！'))
+          console.log(chalk.green(`${result.succeeded.length}個のレジストリに公開しました\n`))
+          process.exit(0)
+        } else {
+          console.log(chalk.red.bold('❌ 一部または全部が失敗しました'))
+          console.log(chalk.yellow(`成功: ${result.succeeded.length}個`))
+          console.log(chalk.red(`失敗: ${result.failed.size}個`))
+          console.log(chalk.gray(`スキップ: ${result.skipped.length}個\n`))
+          process.exit(1)
+        }
       } else {
-        console.error(chalk.red.bold('\n❌ 失敗'))
-        console.error(chalk.red(`パッケージの公開に失敗しました\n`))
+        // Single registry mode (backward compatible)
+        const publisher = new PackagePublisher(projectPath)
 
-        if (result.errors.length > 0) {
-          console.error(chalk.red('エラー:'))
-          for (const error of result.errors) {
-            console.error(chalk.red(`  - ${error}`))
-          }
+        // Register all plugins
+        publisher.registerPlugin(new NPMPlugin(projectPath))
+        publisher.registerPlugin(new CratesIOPlugin(projectPath))
+        publisher.registerPlugin(new PyPIPlugin(projectPath))
+        publisher.registerPlugin(new HomebrewPlugin(projectPath))
+
+        // Load configuration (CLI args take priority)
+        const cliArgs: Record<string, unknown> = {}
+        if (options.registry) {
+          cliArgs.project = { defaultRegistry: options.registry }
+        }
+        if (options.dryRunOnly !== undefined) {
+          cliArgs.publish = { dryRun: options.dryRunOnly ? 'always' : 'never' }
+        }
+        if (options.nonInteractive !== undefined) {
+          cliArgs.publish = { ...cliArgs.publish as Record<string, unknown>, interactive: !options.nonInteractive }
         }
 
-        console.log(chalk.gray(`\n処理時間: ${(result.duration / 1000).toFixed(2)}秒\n`))
+        await publisher.loadConfig(cliArgs)
 
-        process.exit(1)
+        const publishOptions = {
+          registry: options.registry,
+          dryRun: options.dryRunOnly,
+          nonInteractive: options.nonInteractive,
+          resume: options.resume,
+          otp: options.otp,
+          tag: options.tag,
+          access: options.access
+        }
+
+        const result = await publisher.publish(publishOptions)
+
+        if (result.success) {
+          console.log(chalk.green.bold('\n✅ 成功！'))
+          console.log(
+            chalk.green(`パッケージ ${result.packageName}@${result.version} を公開しました`)
+          )
+          if (result.verificationUrl) {
+            console.log(chalk.blue(`URL: ${result.verificationUrl}`))
+          }
+          console.log(chalk.gray(`処理時間: ${(result.duration / 1000).toFixed(2)}秒\n`))
+
+          if (result.warnings.length > 0) {
+            console.log(chalk.yellow('⚠️  警告:'))
+            for (const warning of result.warnings) {
+              console.log(chalk.yellow(`  - ${warning}`))
+            }
+          }
+
+          process.exit(0)
+        } else {
+          console.error(chalk.red.bold('\n❌ 失敗'))
+          console.error(chalk.red(`パッケージの公開に失敗しました\n`))
+
+          if (result.errors.length > 0) {
+            console.error(chalk.red('エラー:'))
+            for (const error of result.errors) {
+              console.error(chalk.red(`  - ${error}`))
+            }
+          }
+
+          console.log(chalk.gray(`\n処理時間: ${(result.duration / 1000).toFixed(2)}秒\n`))
+
+          process.exit(1)
+        }
       }
     } catch (error) {
       console.error(chalk.red.bold('\n❌ エラー'))
