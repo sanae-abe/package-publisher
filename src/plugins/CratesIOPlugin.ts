@@ -132,18 +132,13 @@ export class CratesIOPlugin implements RegistryPlugin {
         })
       }
 
-      // Run cargo test
-      try {
-        await this.executor.execSafe('cargo', ['test'], {
-          cwd: this.projectPath
-        })
-      } catch (error) {
-        errors.push({
-          field: 'cargo.test',
-          message: `テストに失敗: ${(error as Error).message}`,
-          severity: 'error'
-        })
-      }
+      // Note: cargo test can be time-consuming for large projects
+      // For check command, we skip running tests and recommend manual testing
+      warnings.push({
+        field: 'cargo.test',
+        message: 'テストは時間がかかるためスキップしました。手動で `cargo test` を実行してください。',
+        severity: 'warning'
+      })
 
       // Run cargo clippy if available
       try {

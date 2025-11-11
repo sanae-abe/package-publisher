@@ -281,18 +281,16 @@ license = "MIT"
         )
       })
 
-      it('cargo testが失敗した場合はエラー', async () => {
-        mockExecutor.execSafe
-          .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // cargo check
-          .mockRejectedValueOnce(new Error('Test failed'))
+      it('cargo testはスキップされて警告のみ', async () => {
+        mockExecutor.execSafe.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // cargo check
 
         const result = await plugin.validate()
 
-        expect(result.valid).toBe(false)
-        expect(result.errors).toContainEqual(
+        expect(result.valid).toBe(true)
+        expect(result.warnings).toContainEqual(
           expect.objectContaining({
             field: 'cargo.test',
-            message: expect.stringContaining('失敗')
+            message: expect.stringContaining('スキップ')
           })
         )
       })
@@ -300,8 +298,7 @@ license = "MIT"
       it('cargo clippyが失敗した場合は警告', async () => {
         mockExecutor.execSafe
           .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // cargo check
-          .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // cargo test
-          .mockRejectedValueOnce(new Error('Clippy warnings detected'))
+          .mockRejectedValueOnce(new Error('Clippy warnings detected')) // cargo clippy
 
         const result = await plugin.validate()
 

@@ -134,18 +134,14 @@ export class HomebrewPlugin implements RegistryPlugin {
         })
       }
 
-      // Run brew audit if formula exists
-      try {
-        await this.executor.execSafe('brew', ['audit', '--strict', this.formulaPath], {
-          cwd: this.projectPath
-        })
-      } catch (error) {
-        errors.push({
-          field: 'brew.audit',
-          message: `brew auditに失敗: ${(error as Error).message}`,
-          severity: 'error'
-        })
-      }
+      // Note: brew audit requires formula to be installed or in a tap
+      // For local formula files, we skip brew audit and rely on manual validation
+      // Users should run `brew audit` manually after adding formula to a tap
+      warnings.push({
+        field: 'brew.audit',
+        message: 'ローカルFormulaファイルのため、brew auditをスキップしました。Tapに追加後に手動で実行してください。',
+        severity: 'warning'
+      })
 
       return {
         valid: errors.length === 0,
@@ -183,25 +179,22 @@ export class HomebrewPlugin implements RegistryPlugin {
         }
       }
 
-      // Run brew audit (strict mode)
-      const auditResult = await this.executor.execSafe(
-        'brew',
-        ['audit', '--strict', this.formulaPath],
-        {
-          cwd: this.projectPath
-        }
-      )
+      // Note: Local formula files cannot be audited or installed directly
+      // These commands only work after the formula is added to a tap
 
-      // Try to install locally (test build)
-      const installResult = await this.executor.execSafe(
-        'brew',
-        ['install', '--build-from-source', this.formulaPath],
-        {
-          cwd: this.projectPath
-        }
-      )
+      // Validate formula syntax by reading it
+      await this.loadFormulaMetadata()
 
-      const output = auditResult.stdout + '\n' + installResult.stdout
+      const output = `Formula検証完了:
+- Formula名: ${this.formulaMetadata?.name || 'unknown'}
+- バージョン: ${this.formulaMetadata?.version || 'unknown'}
+- URL: ${this.formulaMetadata?.url || 'none'}
+
+⚠️  注意: ローカルFormulaのため、brew auditとinstallテストをスキップしました
+
+Tapに追加後、以下のコマンドで詳細検証してください:
+  brew audit --strict ${this.formulaMetadata?.name}
+  brew install --build-from-source ${this.formulaMetadata?.name}`
 
       return {
         success: true,

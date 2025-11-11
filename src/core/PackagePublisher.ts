@@ -158,8 +158,13 @@ export class PackagePublisher {
       // 4. Security scan (if enabled)
       const secretsScanningEnabled = this.config?.security?.secretsScanning?.enabled !== false
       if (secretsScanningEnabled) {
-        console.log('🔍 セキュリティスキャン実行中...')
-        const scanReport = await this.secretsScanner.scanProject(this.projectPath)
+        // Configure custom ignore patterns from config
+        this.secretsScanner.configure(this.config?.security?.secretsScanning)
+        const scanReport = await this.secretsScanner.scanProject(
+          this.projectPath,
+          [],
+          !effectiveOptions.nonInteractive
+        )
 
         if (scanReport.hasSecrets) {
           const formatted = SecretsScanner.formatReport(scanReport)

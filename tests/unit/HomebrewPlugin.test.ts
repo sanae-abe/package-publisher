@@ -72,20 +72,16 @@ end
     })
 
     it('有効なFormulaの場合は検証成功', async () => {
-      mockExecutor.execSafe.mockResolvedValue({
-        stdout: 'audit passed',
-        stderr: '',
-        exitCode: 0
-      })
-
       const result = await plugin.validate()
 
       expect(result.valid).toBe(true)
       expect(result.errors).toHaveLength(0)
-      expect(mockExecutor.execSafe).toHaveBeenCalledWith(
-        'brew',
-        expect.arrayContaining(['audit', '--strict']),
-        expect.any(Object)
+      // brew audit is skipped for local formulas
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          field: 'brew.audit',
+          message: expect.stringContaining('スキップ')
+        })
       )
     })
 
@@ -291,18 +287,15 @@ end
     })
 
     describe('brew audit', () => {
-      it('brew auditが失敗した場合はエラー', async () => {
-        mockExecutor.execSafe.mockRejectedValue(
-          new Error('audit failed: missing dependency')
-        )
-
+      it('brew auditはローカルFormulaでスキップされる', async () => {
         const result = await plugin.validate()
 
-        expect(result.valid).toBe(false)
-        expect(result.errors).toContainEqual(
+        // brew audit is skipped for local formulas, so no errors
+        expect(result.valid).toBe(true)
+        expect(result.warnings).toContainEqual(
           expect.objectContaining({
             field: 'brew.audit',
-            message: expect.stringContaining('失敗')
+            message: expect.stringContaining('スキップ')
           })
         )
       })
@@ -343,44 +336,22 @@ end
     })
 
     it('brew auditとinstall testが成功した場合は結果を返す', async () => {
-      mockExecutor.execSafe
-        .mockResolvedValueOnce({
-          stdout: 'audit passed',
-          stderr: '',
-          exitCode: 0
-        })
-        .mockResolvedValueOnce({
-          stdout: 'installation successful',
-          stderr: '',
-          exitCode: 0
-        })
-
       const result = await plugin.dryRun()
 
       expect(result.success).toBe(true)
-      expect(mockExecutor.execSafe).toHaveBeenCalledWith(
-        'brew',
-        expect.arrayContaining(['audit', '--strict']),
-        expect.any(Object)
-      )
-      expect(mockExecutor.execSafe).toHaveBeenCalledWith(
-        'brew',
-        expect.arrayContaining(['install', '--build-from-source']),
-        expect.any(Object)
-      )
+      expect(result.output).toContain('Formula検証完了')
+      expect(result.output).toContain('my-tool')
+      expect(result.output).toContain('https://example.com/tool.tar.gz')
+      // brew audit and install tests are skipped for local formulas
+      expect(mockExecutor.execSafe).not.toHaveBeenCalled()
     })
 
-    it('brew auditが失敗した場合はエラーを返す', async () => {
-      mockExecutor.execSafe.mockRejectedValue(new Error('audit failed'))
-
+    it('ローカルFormulaの検証でスキップ警告を表示', async () => {
       const result = await plugin.dryRun()
 
-      expect(result.success).toBe(false)
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          message: expect.stringContaining('失敗')
-        })
-      )
+      expect(result.success).toBe(true)
+      expect(result.output).toContain('スキップ')
+      expect(result.output).toContain('brew audit --strict')
     })
 
     it('Formulaファイルが見つからない場合はエラー', async () => {

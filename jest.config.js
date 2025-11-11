@@ -17,7 +17,8 @@ module.exports = {
     }
   },
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1'
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^ora$': '<rootDir>/tests/__mocks__/ora.ts'
   },
   transformIgnorePatterns: [
     'node_modules/(?!(node-fetch)/)'
