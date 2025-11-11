@@ -11,7 +11,36 @@
 
 **package-publisher** is a Claude Code agent that supports safe and efficient package publishing across multiple package registries.
 
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Use Cases](#-use-cases)
+- [Quick Start](#-quick-start)
+  - [Installation](#installation)
+  - [Usage as CLI](#usage-as-cli)
+  - [Usage as Claude Code Agent](#usage-as-claude-code-agent)
+- [Project Structure](#-project-structure)
+- [Development](#-development)
+- [Documentation](#-documentation)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Links](#-links)
+
 ## ✨ Features
+
+### Core Capabilities
+
+- 🎯 **Multi-Registry Support** - npm, crates.io, PyPI, Homebrew with auto-detection
+- 🔒 **Security-First Design** - Secrets scanner, token masking, injection prevention
+- 🚀 **Automated Publishing** - 7-step workflow with validation, dry-run, and rollback
+- 🔄 **Resilience & Error Handling** - State machine, retry logic, comprehensive error messages
+- 🎛️ **Advanced Features** - YAML config, batch publishing, hooks, notifications, plugins, analytics
+
+**Quality Metrics**: 367 tests (89%+ coverage), TypeScript strict mode, ESLint zero errors
+
+<details>
+<summary>📖 See detailed features</summary>
 
 ### 🎯 Multi-Registry Support
 
@@ -76,11 +105,7 @@
   - Markdown/JSON format reports
   - CLI integration (`stats`, `report` commands)
 
-**Quality Metrics**:
-- ✅ **367 tests** (15 test suites, all passing)
-- ✅ **89%+ test coverage**
-- ✅ **TypeScript strict mode** fully compliant
-- ✅ **ESLint** zero errors and warnings
+</details>
 
 ## 📚 Use Cases
 
@@ -112,15 +137,16 @@
 - Node.js 18.x or higher
 - npm 9.x or higher
 
-**Development Setup**:
+**Development Setup** (for contributors):
 ```bash
+# Clone repository (available after initial publication)
 git clone https://github.com/sanae-abe/package-publisher
 cd package-publisher
 npm install
 npm run build
 ```
 
-**Global Installation** (after npm publication):
+**Global Installation** (available after npm publication):
 ```bash
 npm install -g package-publisher
 ```
@@ -186,68 +212,40 @@ ln -s ~/projects/package-publisher/agent-definition.yaml \
 
 ## 📁 Project Structure
 
+### Key Directories
+
+- **`src/core/`** - Core publishing logic (state machine, error handling, config, batch, hooks, analytics, plugins)
+- **`src/plugins/`** - Registry-specific implementations (npm, crates.io, PyPI, Homebrew)
+- **`src/security/`** - Security features (secrets scanner, token manager, command executor)
+- **`src/notifications/`** - Notification integrations (Slack, Email)
+- **`tests/unit/`** - Comprehensive test suite (15 suites, 367 tests, 89% coverage)
+- **`docs/`** - Additional documentation (Agent Integration, Plugin Development, CI/CD)
+- **`.github/workflows/`** - GitHub Actions workflows (single/multi-registry publishing)
+- **`examples/`** - Sample plugin implementations
+
+<details>
+<summary>📂 See full project structure</summary>
+
 ```
 package-publisher/
 ├── src/
-│   ├── core/
-│   │   ├── interfaces.ts          # Core type definitions
-│   │   ├── PublishStateMachine.ts # State management
-│   │   ├── ErrorHandling.ts       # Error factory & codes
-│   │   ├── RetryManager.ts        # Retry logic with backoff
-│   │   ├── PackagePublisher.ts    # Main orchestrator
-│   │   ├── ConfigLoader.ts        # YAML config loader
-│   │   ├── PublishConfig.ts       # Config type definitions
-│   │   ├── BatchPublisher.ts      # Multi-registry batch publishing
-│   │   ├── HookExecutor.ts        # Pre/Post-publish hooks
-│   │   ├── PublishAnalytics.ts    # Analytics & reporting
-│   │   └── PluginLoader.ts        # Dynamic plugin loader
-│   ├── plugins/
-│   │   ├── NPMPlugin.ts           # npm/npmjs.com
-│   │   ├── CratesIOPlugin.ts      # Rust/crates.io
-│   │   ├── PyPIPlugin.ts          # Python/PyPI
-│   │   └── HomebrewPlugin.ts      # Homebrew Formula
-│   ├── notifications/             # Notification system
-│   │   ├── NotificationManager.ts # Notification orchestrator
-│   │   ├── SlackNotifier.ts       # Slack webhook integration
-│   │   └── EmailNotifier.ts       # Email notification (SendGrid)
-│   ├── security/
-│   │   ├── SecureTokenManager.ts  # Token handling & masking
-│   │   ├── SecretsScanner.ts      # 10 secret patterns detection
-│   │   └── SafeCommandExecutor.ts # Command injection prevention
-│   ├── cli.ts                     # CLI interface (Commander.js)
-│   └── index.ts                   # Library exports
-├── tests/unit/                    # 15 test suites, 367 tests, 89% coverage
-│   ├── NPMPlugin.test.ts
-│   ├── CratesIOPlugin.test.ts
-│   ├── PyPIPlugin.test.ts
-│   ├── HomebrewPlugin.test.ts
-│   ├── PackagePublisher.test.ts
-│   ├── ConfigLoader.test.ts       # 31 tests
-│   ├── BatchPublisher.test.ts     # Batch publishing tests
-│   ├── HookExecutor.test.ts       # 32 tests
-│   ├── NotificationManager.test.ts # 11 tests
-│   ├── SlackNotifier.test.ts      # 15 tests
-│   ├── EmailNotifier.test.ts      # 18 tests
-│   ├── PluginLoader.test.ts       # 25 tests
-│   ├── PublishAnalytics.test.ts   # 25 tests
-│   ├── SafeCommandExecutor.test.ts # 19 tests, 100% coverage
-│   └── SecureTokenManager.test.ts  # 34 tests, 100% coverage
-├── docs/
-│   ├── AGENT_INTEGRATION.md       # Claude Code integration guide
-│   ├── PLUGIN_DEVELOPMENT.md      # Custom plugin development guide
-│   └── CI_CD_INTEGRATION.md       # CI/CD integration
-├── .github/workflows/
-│   ├── publish-npm.yml            # GitHub Actions (single registry)
-│   └── publish-multiregistry.yml  # Multi-registry publishing
-├── examples/
-│   └── plugin-example/            # Sample plugin implementation
-├── agent-definition.yaml          # Claude Code agent definition
-├── .publish-config.example.yaml   # Configuration file example
-├── PHASE4_PLAN.md                 # Implementation plan & status
-├── .eslintrc.js                   # TypeScript strict mode ESLint
-├── .prettierrc                    # Code formatting rules
-└── package.json
+│   ├── core/              # Core publishing logic
+│   ├── plugins/           # Registry plugins (npm, crates.io, PyPI, Homebrew)
+│   ├── notifications/     # Notification system (Slack, Email)
+│   ├── security/          # Security features
+│   ├── cli.ts            # CLI interface
+│   └── index.ts          # Library exports
+├── tests/unit/           # 15 test suites, 367 tests, 89% coverage
+├── docs/                 # Documentation
+├── .github/workflows/    # CI/CD workflows
+├── examples/             # Sample implementations
+├── agent-definition.yaml # Claude Code agent definition
+└── .publish-config.example.yaml # Configuration example
 ```
+
+For detailed file listing, run: `tree -L 3 -I 'node_modules|dist'`
+
+</details>
 
 ## 🔧 Development
 
@@ -291,79 +289,82 @@ npm run format
 
 ## 🔧 Troubleshooting
 
-### Common Issues and Solutions
+### Quick Solutions
 
-#### Authentication Errors (AUTHENTICATION_FAILED)
+<details>
+<summary>🔐 Authentication Errors</summary>
+
 **Symptoms**: `Authentication failed for registry` error
 
-**Solutions**:
 ```bash
-# Check token
-echo $NPM_TOKEN  # for npm
-echo $CARGO_REGISTRY_TOKEN  # for crates.io
+# Check if token is set (without exposing value)
+[ -n "$NPM_TOKEN" ] && echo "✅ Set" || echo "❌ Not set"
 
-# Reset token
+# Set token
 export NPM_TOKEN="your-token-here"
 
 # If 2FA/OTP is required
 package-publisher publish --registry npm --otp 123456
 ```
+</details>
 
-#### Blocked by Secrets Scanner
+<details>
+<summary>🔍 Secrets Scanner Issues</summary>
+
 **Symptoms**: `Secrets detected in package` error
 
-**Solutions**:
-```bash
-# Add sensitive files to .gitignore
-echo ".env" >> .gitignore
-echo "credentials.json" >> .gitignore
-
-# Remove sensitive information from commits
-git filter-branch --force --index-filter \
-  'git rm --cached --ignore-unmatch path/to/secret/file' \
-  --prune-empty --tag-name-filter cat -- --all
+**For false positives** (test files, examples):
+```yaml
+# .publisher.yml - Exclude test/doc files
+security:
+  secretsScanning:
+    ignorePatterns:
+      - pattern: "**/*test*.{rs,ts,js,py}"
+      - pattern: "docs/**/*.md"
 ```
 
-#### Network Errors
-**Symptoms**: Timeout or connection errors
+**For real secrets**: Add to `.gitignore` and use `git-filter-repo` to remove from history.
 
-**Solutions**:
+See [detailed guide](./docs/SECURITY_SCANNER.md) for more options.
+</details>
+
+<details>
+<summary>🌐 Network Errors</summary>
+
 ```bash
 # Increase retry count
 package-publisher publish --max-retries 5
 
-# Configure proxy (if needed)
-export HTTP_PROXY=http://proxy.example.com:8080
-export HTTPS_PROXY=http://proxy.example.com:8080
+# Configure HTTPS proxy (recommended)
+export HTTPS_PROXY=https://proxy.example.com:8443
 ```
+</details>
 
-#### Test Failures
-**Symptoms**: Pre-publish tests fail
+<details>
+<summary>❌ Test Failures</summary>
 
-**Solutions**:
 ```bash
-# Run tests locally
+# Run tests locally first
 npm test
 
-# Skip tests (not recommended)
+# Skip verification (not recommended for production)
 package-publisher publish --skip-verification
 ```
+</details>
 
-### Checking Logs
+### Logging & Support
 
 ```bash
-# Verbose logging
+# Enable verbose logging
 package-publisher publish --verbose
 
 # Debug mode
 DEBUG=* package-publisher publish
 ```
 
-### Support
-
-If the issue persists, please use:
-- [GitHub Issues](https://github.com/sanae-abe/package-publisher/issues) - Bug reports and feature requests
-- [GitHub Discussions](https://github.com/sanae-abe/package-publisher/discussions) - Questions and discussions
+**Need help?**
+- [GitHub Issues](https://github.com/sanae-abe/package-publisher/issues) - Bug reports
+- [GitHub Discussions](https://github.com/sanae-abe/package-publisher/discussions) - Questions
 
 ## 🤝 Contributing
 
