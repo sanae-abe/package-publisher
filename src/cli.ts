@@ -19,7 +19,7 @@ program
   .version('0.1.0')
 
 program
-  .command('publish')
+  .command('publish [project-path]')
   .description('Publish package to registry')
   .option('-r, --registry <name>', 'Specify registry (npm, crates.io, pypi, homebrew)')
   .option('--registries <list>', 'Comma-separated list of registries for batch publishing (e.g., npm,pypi,crates.io)')
@@ -35,8 +35,8 @@ program
   .option('-c, --config <path>', 'Custom configuration file path')
   .option('--skip-hooks', 'Skip all hook execution (preBuild, prePublish, postPublish, onError)')
   .option('--hooks-only', 'Execute hooks only without actual publishing (dry-run for hooks)')
-  .action(async (options) => {
-    const projectPath = process.cwd()
+  .action(async (projectPathArg, options) => {
+    const projectPath = projectPathArg || process.cwd()
 
     try {
       console.log(chalk.bold('\n📦 package-publisher\n'))
@@ -168,11 +168,11 @@ program
   })
 
 program
-  .command('check')
+  .command('check [project-path]')
   .description('Check if project is ready to publish')
   .option('-r, --registry <name>', 'Specify registry to check')
-  .action(async (options) => {
-    const projectPath = process.cwd()
+  .action(async (projectPathArg, options) => {
+    const projectPath = projectPathArg || process.cwd()
 
     try {
       console.log(chalk.bold('\n🔍 パッケージチェック\n'))
@@ -243,15 +243,15 @@ program
   })
 
 program
-  .command('stats')
+  .command('stats [project-path]')
   .description('Display publishing statistics')
   .option('-r, --registry <name>', 'Filter by registry (npm, pypi, crates.io)')
   .option('-p, --package <name>', 'Filter by package name')
   .option('--success-only', 'Show only successful publishes')
   .option('--failures-only', 'Show only failed publishes')
   .option('--days <number>', 'Show statistics for the last N days', '30')
-  .action(async (options) => {
-    const projectPath = process.cwd()
+  .action(async (projectPathArg, options) => {
+    const projectPath = projectPathArg || process.cwd()
 
     try {
       console.log(chalk.bold('\n📊 Publishing Statistics\n'))
