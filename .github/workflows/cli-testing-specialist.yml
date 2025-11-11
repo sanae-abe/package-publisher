@@ -169,10 +169,16 @@ jobs:
         run: |
           if [ -f cli-reports/cli-tests-report.json ]; then
             echo "📊 Test Results:"
-            jq -r '"Total: " + (.total_tests | tostring)' cli-reports/cli-tests-report.json
-            jq -r '"Passed: " + (.total_passed | tostring)' cli-reports/cli-tests-report.json
-            jq -r '"Failed: " + (.total_failed | tostring)' cli-reports/cli-tests-report.json
-            jq -r '"Success Rate: " + ((.success_rate * 100) | tostring) + "%"' cli-reports/cli-tests-report.json
+            TOTAL=$(jq '[.suites[].tests | length] | add' cli-reports/cli-tests-report.json)
+            PASSED=$(jq '[.suites[].tests[] | select(.status == "passed")] | length' cli-reports/cli-tests-report.json)
+            FAILED=$(jq '[.suites[].tests[] | select(.status == "failed")] | length' cli-reports/cli-tests-report.json)
+            echo "Total: $TOTAL"
+            echo "Passed: $PASSED"
+            echo "Failed: $FAILED"
+            if [ "$TOTAL" -gt 0 ]; then
+              SUCCESS_RATE=$(echo "scale=1; $PASSED * 100 / $TOTAL" | bc)
+              echo "Success Rate: ${SUCCESS_RATE}%"
+            fi
           fi
 
       # ========== Report Upload ==========
@@ -199,7 +205,7 @@ jobs:
         if: always()
         run: |
           if [ -f cli-reports/cli-tests-report.json ]; then
-            FAILED=$(jq -r '.total_failed' cli-reports/cli-tests-report.json)
+            FAILED=$(jq '[.suites[].tests[] | select(.status == "failed")] | length' cli-reports/cli-tests-report.json)
 
             if [ "$FAILED" -gt 0 ]; then
               echo "::error::❌ $FAILED CLI tests failed"
@@ -291,7 +297,7 @@ jobs:
         if: always()
         run: |
           if [ -f security-reports/security-tests-report.json ]; then
-            FAILED=$(jq -r '.total_failed' security-reports/security-tests-report.json)
+            FAILED=$(jq '[.suites[].tests[] | select(.status == "failed")] | length' security-reports/security-tests-report.json)
 
             if [ "$FAILED" -gt 0 ]; then
               echo "::error::❌ Security tests failed: $FAILED tests"
