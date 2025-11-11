@@ -1,0 +1,301 @@
+name: CLI Testing Specialist (Automated)
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+  schedule:
+    # Run daily at 00:00 UTC for comprehensive testing
+    - cron: '0 0 * * *'
+
+env:
+  NODE_ENV: test
+
+jobs:
+  cli-automated-testing:
+    name: Automated CLI Testing (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [18, 20]
+        include:
+          - os: ubuntu-latest
+            node-version: 18
+            binary: dist/cli.js
+          - os: ubuntu-latest
+            node-version: 20
+            binary: dist/cli.js
+          - os: macos-latest
+            node-version: 18
+            binary: dist/cli.js
+          - os: macos-latest
+            node-version: 20
+            binary: dist/cli.js
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package-publisher
+        run: npm run build
+
+      - name: Verify package-publisher binary
+        run: |
+          node ${{ matrix.binary }} --version
+          node ${{ matrix.binary }} --help
+
+      # ========== cli-testing-specialist installation ==========
+
+      - name: Install Rust (for cli-testing-specialist)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cli-testing-specialist
+        id: cache-cli-testing-specialist
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/bin/cli-testing-specialist
+          key: ${{ runner.os }}-cli-testing-specialist-v1.0.2-node${{ matrix.node-version }}
+
+      - name: Install cli-testing-specialist
+        if: steps.cache-cli-testing-specialist.outputs.cache-hit != 'true'
+        run: |
+          cargo install --git https://github.com/sanae-abe/cli-testing-specialist --rev 3411fd4f8b2cb4937cb1c62082e4f62cbf783274 cli-testing-specialist
+
+      - name: Verify cli-testing-specialist installation
+        run: cli-testing-specialist --version
+
+      # ========== CLI Analysis Phase ==========
+
+      - name: Create wrapper script for Node.js binary
+        run: |
+          # Create executable wrapper script for cli-testing-specialist
+          cat > package-publisher-wrapper.sh << 'EOF'
+          #!/bin/bash
+          node "$(dirname "$0")/dist/cli.js" "$@"
+          EOF
+          chmod +x package-publisher-wrapper.sh
+
+      - name: Analyze package-publisher CLI
+        run: |
+          cli-testing-specialist analyze \
+            ./package-publisher-wrapper.sh \
+            --output package-publisher-analysis.json
+
+      - name: Display analysis summary
+        run: |
+          echo "📊 Analysis Results:"
+          jq -r '.binary_name + " v" + .version' package-publisher-analysis.json || true
+          jq -r '"Global Options: " + (.global_options | length | tostring)' package-publisher-analysis.json
+          jq -r '"Subcommands: " + (.subcommands | length | tostring)' package-publisher-analysis.json
+
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-analysis-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: package-publisher-analysis.json
+          retention-days: 30
+
+      # ========== Test Generation Phase ==========
+
+      - name: Generate CLI tests (default categories)
+        run: |
+          # Generate tests excluding resource-intensive categories
+          cli-testing-specialist generate \
+            package-publisher-analysis.json \
+            --output cli-tests \
+            --categories all
+
+      - name: List generated test files
+        run: |
+          echo "📝 Generated Test Files:"
+          ls -lh cli-tests/
+
+      - name: Upload generated tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-tests-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: cli-tests/
+          retention-days: 30
+
+      # ========== Test Execution Phase ==========
+
+      - name: Install BATS
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y bats
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install bats-core
+          fi
+
+      - name: Verify BATS installation
+        run: bats --version
+
+      - name: Add package-publisher to PATH
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          ln -sf "$PWD/package-publisher-wrapper.sh" "$HOME/.local/bin/package-publisher"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Verify package-publisher in PATH
+        run: |
+          which package-publisher
+          package-publisher --version
+
+      - name: Run CLI tests
+        run: |
+          cli-testing-specialist run \
+            cli-tests \
+            --format all \
+            --output cli-reports \
+            --timeout 60
+
+      - name: Display test results summary
+        if: always()
+        run: |
+          if [ -f cli-reports/cli-tests-report.json ]; then
+            echo "📊 Test Results:"
+            jq -r '"Total: " + (.total_tests | tostring)' cli-reports/cli-tests-report.json
+            jq -r '"Passed: " + (.total_passed | tostring)' cli-reports/cli-tests-report.json
+            jq -r '"Failed: " + (.total_failed | tostring)' cli-reports/cli-tests-report.json
+            jq -r '"Success Rate: " + ((.success_rate * 100) | tostring) + "%"' cli-reports/cli-tests-report.json
+          fi
+
+      # ========== Report Upload ==========
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cli-test-reports-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: cli-reports/
+          retention-days: 30
+
+      - name: Upload JUnit XML for test reporting
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-report-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: cli-reports/*-junit.xml
+          retention-days: 30
+
+      # ========== Test Results Check ==========
+
+      - name: Check test results (fail on errors)
+        if: always()
+        run: |
+          if [ -f cli-reports/cli-tests-report.json ]; then
+            FAILED=$(jq -r '.total_failed' cli-reports/cli-tests-report.json)
+
+            if [ "$FAILED" -gt 0 ]; then
+              echo "::error::❌ $FAILED CLI tests failed"
+              exit 1
+            else
+              echo "✅ All CLI tests passed"
+            fi
+          else
+            echo "::warning::No test report found"
+          fi
+
+  # Security-focused automated testing
+  cli-security-automated:
+    name: Automated Security Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package-publisher
+        run: npm run build
+
+      - name: Install Rust (for cli-testing-specialist)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cli-testing-specialist
+        id: cache-cli-testing-specialist-security
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/bin/cli-testing-specialist
+          key: ${{ runner.os }}-cli-testing-specialist-v1.0.2
+
+      - name: Install cli-testing-specialist
+        if: steps.cache-cli-testing-specialist-security.outputs.cache-hit != 'true'
+        run: |
+          cargo install --git https://github.com/sanae-abe/cli-testing-specialist --rev 3411fd4f8b2cb4937cb1c62082e4f62cbf783274 cli-testing-specialist
+
+      - name: Create wrapper script for Node.js binary
+        run: |
+          cat > package-publisher-wrapper.sh << 'EOF'
+          #!/bin/bash
+          node "$(dirname "$0")/dist/cli.js" "$@"
+          EOF
+          chmod +x package-publisher-wrapper.sh
+
+      - name: Analyze CLI
+        run: |
+          cli-testing-specialist analyze \
+            ./package-publisher-wrapper.sh \
+            --output package-publisher-analysis.json
+
+      - name: Generate security tests only
+        run: |
+          cli-testing-specialist generate \
+            package-publisher-analysis.json \
+            --output security-tests \
+            --categories security,input-validation
+
+      - name: Install BATS
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Run security tests
+        run: |
+          cli-testing-specialist run \
+            security-tests \
+            --format all \
+            --output security-reports
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-test-reports
+          path: security-reports/
+          retention-days: 90
+
+      - name: Check for security failures
+        if: always()
+        run: |
+          if [ -f security-reports/security-tests-report.json ]; then
+            FAILED=$(jq -r '.total_failed' security-reports/security-tests-report.json)
+
+            if [ "$FAILED" -gt 0 ]; then
+              echo "::error::❌ Security tests failed: $FAILED tests"
+              cat security-reports/security-tests-report.md || true
+              exit 1
+            fi
+          fi
