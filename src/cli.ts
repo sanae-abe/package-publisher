@@ -17,6 +17,20 @@ program
   .name('package-publisher')
   .description('Multi-registry package publishing assistant')
   .version('0.1.0')
+  .exitOverride((err) => {
+    // Override commander's default exit behavior for better error handling
+    if (err.code === 'commander.unknownOption') {
+      // Exit with code 2 for invalid options (POSIX convention)
+      process.stderr.write(err.message + '\n')
+      process.exit(2)
+    }
+    // Allow normal help/version display
+    if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version') {
+      process.exit(0)
+    }
+    // Re-throw other errors
+    throw err
+  })
 
 program
   .command('publish [project-path]')

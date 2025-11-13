@@ -1,0 +1,353 @@
+{
+  "binary_path": "/Users/sanae.abe/projects/package-publisher/dist/cli.js",
+  "binary_name": "cli.js",
+  "version": "0.1.0",
+  "help_output": "Usage: package-publisher [options] [command]\n\nMulti-registry package publishing assistant\n\nOptions:\n  -V, --version                     output the version number\n  -h, --help                        display help for command\n\nCommands:\n  publish [options] [project-path]  Publish package to registry\n  check [options] [project-path]    Check if project is ready to publish\n  stats [options] [project-path]    Display publishing statistics\n  report [options]                  Generate publishing report\n  help [command]                    display help for command\n",
+  "subcommands": [
+    {
+      "name": "publish",
+      "description": "Publish package to registry",
+      "options": [
+        {
+          "short": "-r",
+          "long": "--registry",
+          "description": "Specify registry (npm, crates.io, pypi, homebrew)",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--registries",
+          "description": "Comma-separated list of registries for batch",
+          "option_type": {
+            "Numeric": {
+              "min": null,
+              "max": null
+            }
+          },
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--sequential",
+          "description": "Publish to registries sequentially instead of in",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--max-concurrency",
+          "description": "Maximum concurrent publishes (default: 3, batch",
+          "option_type": {
+            "Numeric": {
+              "min": null,
+              "max": null
+            }
+          },
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--continue-on-error",
+          "description": "Continue publishing even if one registry fails",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--dry-run-only",
+          "description": "Only perform dry-run without actual publishing",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--non-interactive",
+          "description": "Run in non-interactive mode (CI/CD)",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--resume",
+          "description": "Resume from previous state",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--otp",
+          "description": "2FA one-time password (npm)",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--tag",
+          "description": "Publish with tag (default: latest)",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--access",
+          "description": "Access level for scoped packages",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-c",
+          "long": "--config",
+          "description": "Custom configuration file path",
+          "option_type": "Path",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--skip-hooks",
+          "description": "Skip all hook execution (preBuild, prePublish,",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--hooks-only",
+          "description": "Execute hooks only without actual publishing",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-h",
+          "long": "--help",
+          "description": "display help for command",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        }
+      ],
+      "required_args": [],
+      "subcommands": [],
+      "depth": 0
+    },
+    {
+      "name": "check",
+      "description": "Check if project is ready to publish",
+      "options": [
+        {
+          "short": "-r",
+          "long": "--registry",
+          "description": "Specify registry to check",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-h",
+          "long": "--help",
+          "description": "display help for command",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        }
+      ],
+      "required_args": [],
+      "subcommands": [],
+      "depth": 0
+    },
+    {
+      "name": "stats",
+      "description": "Display publishing statistics",
+      "options": [
+        {
+          "short": "-r",
+          "long": "--registry",
+          "description": "Filter by registry (npm, pypi, crates.io)",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-p",
+          "long": "--package",
+          "description": "Filter by package name",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--success-only",
+          "description": "Show only successful publishes",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--failures-only",
+          "description": "Show only failed publishes",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--days",
+          "description": "Show statistics for the last N days (default: \"30\")",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-h",
+          "long": "--help",
+          "description": "display help for command",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        }
+      ],
+      "required_args": [],
+      "subcommands": [],
+      "depth": 0
+    },
+    {
+      "name": "report",
+      "description": "Generate publishing report",
+      "options": [
+        {
+          "short": "-f",
+          "long": "--format",
+          "description": "Report format (markdown|json) (default: \"markdown\")",
+          "option_type": {
+            "Enum": {
+              "values": []
+            }
+          },
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-o",
+          "long": "--output",
+          "description": "Output file path (default: stdout)",
+          "option_type": "Path",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-r",
+          "long": "--registry",
+          "description": "Filter by registry",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-p",
+          "long": "--package",
+          "description": "Filter by package name",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-l",
+          "long": "--limit",
+          "description": "Limit recent publishes (default: 10) (default: \"10\")",
+          "option_type": {
+            "Numeric": {
+              "min": null,
+              "max": null
+            }
+          },
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": null,
+          "long": "--days",
+          "description": "Show statistics for the last N days (default: \"30\")",
+          "option_type": "String",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-h",
+          "long": "--help",
+          "description": "display help for command",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        }
+      ],
+      "required_args": [],
+      "subcommands": [],
+      "depth": 0
+    },
+    {
+      "name": "help",
+      "description": "display help for command",
+      "options": [
+        {
+          "short": "-V",
+          "long": "--version",
+          "description": "output the version number",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        },
+        {
+          "short": "-h",
+          "long": "--help",
+          "description": "display help for command",
+          "option_type": "Flag",
+          "required": false,
+          "default_value": null
+        }
+      ],
+      "required_args": [],
+      "subcommands": [],
+      "depth": 0
+    }
+  ],
+  "global_options": [
+    {
+      "short": "-V",
+      "long": "--version",
+      "description": "output the version number",
+      "option_type": "Flag",
+      "required": false,
+      "default_value": null
+    },
+    {
+      "short": "-h",
+      "long": "--help",
+      "description": "display help for command",
+      "option_type": "Flag",
+      "required": false,
+      "default_value": null
+    }
+  ],
+  "metadata": {
+    "analyzed_at": "2025-11-13T13:32:02.126203+00:00",
+    "analyzer_version": "1.0.9",
+    "total_subcommands": 5,
+    "total_options": 34,
+    "analysis_duration_ms": 2111
+  }
+}
