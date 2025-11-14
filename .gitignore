@@ -45,3 +45,8 @@ temp/
 
 # Project management
 todos.md
+
+
+# Added by cargo
+
+/target

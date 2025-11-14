@@ -1,0 +1,197 @@
+project:
+  description: TypeScript to Rust migration - Multi-language package publishing automation
+    tool
+  last_updated: '2025-11-14T13:20:39.117260Z'
+  name: Package Publisher
+  total_tasks: 8
+tasks:
+- acceptance_criteria:
+  - PublishConfig struct with serde support
+  - YAML/TOML configuration loading working
+  - StateManager with atomic file operations
+  - All unit tests passing (100% coverage)
+  - 'Clippy warnings: 0'
+  assigned_to: null
+  blocked_reason: null
+  completed_at: '2025-11-13T16:19:11.916482Z'
+  depends_on: []
+  description: Build configuration loading system and state management with atomic
+    file operations
+  docs:
+  - docs/phase2/PHASE2_PLAN.md#Phase-2.2
+  - docs/phase2/TESTING_STRATEGY.md
+  effort: 8h
+  git_branch: rust-migration
+  git_commit: null
+  goal: Implement Config & State management (Phase 2.2)
+  id: task-1
+  priority: high
+  started_at: null
+  status: completed
+  type: implementation
+- acceptance_criteria:
+  - SecretsScanner with regex + aho-corasick
+  - CredentialValidator implemented
+  - Pattern detection accuracy >= TypeScript version
+  - 'Performance: < 500ms for 1000 files'
+  - All security tests passing
+  assigned_to: null
+  blocked_reason: null
+  completed_at: '2025-11-14T12:19:29.738613Z'
+  depends_on:
+  - task-1
+  description: Port SecretsScanner from TypeScript with enhanced detection patterns
+  docs:
+  - docs/phase2/PHASE2_PLAN.md#Phase-2.3
+  - src/security/SecretsScanner.ts
+  effort: 10h
+  git_branch: rust-migration
+  git_commit: null
+  goal: Implement Secrets Scanner & Credential Validator (Phase 2.3)
+  id: task-2
+  priority: high
+  started_at: null
+  status: completed
+  type: implementation
+- acceptance_criteria:
+  - ManifestValidator for package.json/Cargo.toml/formula.rb
+  - DependencyChecker with vulnerability detection
+  - VersionValidator with semver support
+  - All validation tests passing
+  - Integration with Config layer
+  assigned_to: null
+  blocked_reason: null
+  completed_at: '2025-11-14T12:43:26.104431+00:00'
+  depends_on:
+  - task-2
+  description: Build manifest validation, dependency checking, and version validation
+  docs:
+  - docs/phase2/PHASE2_PLAN.md#Phase-2.4
+  effort: 8h
+  git_branch: rust-migration
+  git_commit: null
+  goal: Implement Package Validation system (Phase 2.4)
+  id: task-3
+  priority: high
+  started_at: null
+  status: completed
+  type: implementation
+- acceptance_criteria:
+  - RegistryDetector with auto-detection logic
+  - PluginLoader with dynamic loading
+  - NpmPlugin, CratesIOPlugin, PyPiPlugin, HomebrewPlugin stubs
+  - Plugin communication via RegistryPlugin trait
+  - All detection tests passing
+  assigned_to: null
+  blocked_reason: null
+  completed_at: '2025-11-14T15:30:00Z'
+  depends_on:
+  - task-3
+  description: Build registry detection and plugin loading infrastructure
+  docs:
+  - docs/phase2/PHASE2_PLAN.md#Phase-2.5
+  - src/core/RegistryDetector.ts
+  effort: 12h
+  git_branch: rust-migration
+  git_commit: null
+  goal: Implement Registry Detection & Plugin system (Phase 2.5)
+  id: task-4
+  priority: medium
+  started_at: null
+  status: completed
+  type: implementation
+- acceptance_criteria:
+  - 'Commands: publish, check, stats, init'
+  - All CLI options from TypeScript version supported
+  - exitOverride behavior matching TypeScript
+  - 'BATS tests: 100% passing (17/17)'
+  - Help/version output matching
+  assigned_to: null
+  blocked_reason: null
+  completed_at: '2025-11-14T13:20:39.116732Z'
+  depends_on:
+  - task-4
+  description: Build command-line interface matching TypeScript version functionality
+  docs:
+  - docs/phase3/PHASE3_PLAN.md
+  - src/cli.ts
+  - .cli-tests/tests/*.bats
+  effort: 10h
+  git_branch: rust-migration
+  git_commit: null
+  goal: Implement CLI interface with clap (Phase 3)
+  id: task-5
+  priority: high
+  started_at: null
+  status: completed
+  type: implementation
+- acceptance_criteria:
+  - NPM detection logic working
+  - package.json validation
+  - npm publish integration
+  - Dry-run mode working
+  - All NPM plugin tests passing
+  assigned_to: null
+  blocked_reason: null
+  completed_at: null
+  depends_on:
+  - task-5
+  description: Full implementation of NPM registry publishing plugin
+  docs:
+  - docs/phase4/PHASE4_PLAN.md#NPM-Plugin
+  - src/plugins/NPMPlugin.ts
+  effort: 12h
+  git_branch: rust-migration
+  git_commit: null
+  goal: Implement NPM Plugin (Phase 4.1)
+  id: task-6
+  priority: high
+  started_at: null
+  status: pending
+  type: implementation
+- acceptance_criteria:
+  - Cargo.toml detection and validation
+  - cargo publish integration
+  - Dry-run mode working
+  - All Crates.io plugin tests passing
+  assigned_to: null
+  blocked_reason: null
+  completed_at: null
+  depends_on:
+  - task-5
+  description: Full implementation of Crates.io registry publishing plugin
+  docs:
+  - docs/phase4/PHASE4_PLAN.md#Crates-Plugin
+  - src/plugins/CratesIOPlugin.ts
+  effort: 10h
+  git_branch: rust-migration
+  git_commit: null
+  goal: Implement Crates.io Plugin (Phase 4.2)
+  id: task-7
+  priority: high
+  started_at: null
+  status: pending
+  type: implementation
+- acceptance_criteria:
+  - Formula.rb detection and validation
+  - Tap repository management
+  - Dry-run mode working
+  - All Homebrew plugin tests passing
+  assigned_to: null
+  blocked_reason: null
+  completed_at: null
+  depends_on:
+  - task-5
+  description: Full implementation of Homebrew tap publishing plugin
+  docs:
+  - docs/phase4/PHASE4_PLAN.md#Homebrew-Plugin
+  - src/plugins/HomebrewPlugin.ts
+  effort: 10h
+  git_branch: rust-migration
+  git_commit: null
+  goal: Implement Homebrew Plugin (Phase 4.3)
+  id: task-8
+  priority: medium
+  started_at: null
+  status: pending
+  type: implementation

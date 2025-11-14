@@ -2,9 +2,9 @@ name: CLI Testing Specialist (Automated)
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, master, develop, rust-migration]
   pull_request:
-    branches: [main, master, develop]
+    branches: [main, master, develop, rust-migration]
   workflow_dispatch:
   schedule:
     # Run daily at 00:00 UTC for comprehensive testing
