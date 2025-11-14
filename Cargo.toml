@@ -3,6 +3,10 @@ name = "package-publisher"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "package-publisher"
+path = "src/bin/package-publisher.rs"
+
 [dependencies]
 aho-corasick = "1.1.4"
 anyhow = "1.0.100"
@@ -12,6 +16,7 @@ clap = { version = "4.5.51", features = ["derive"] }
 lazy_static = "1.5.0"
 regex = "1.12.2"
 secrecy = { version = "0.10.3", features = ["serde"] }
+semver = "1.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 serde_yaml = "0.9.34"
