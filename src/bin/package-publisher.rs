@@ -4,7 +4,10 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use package_publisher::plugins::PluginLoader;
+use package_publisher::{
+    AnalyticsOptions, BatchPublishOptions, BatchPublisher, PackagePublisher, PluginLoader,
+    PublishAnalytics, PublishOptions,
+};
 use std::path::PathBuf;
 use std::process;
 
@@ -48,7 +51,7 @@ enum Commands {
 
         /// Only perform dry-run
         #[arg(long)]
-        dry_run_only: bool,
+        dry_run: bool,
 
         /// Non-interactive mode (CI/CD)
         #[arg(long)]
@@ -69,10 +72,6 @@ enum Commands {
         /// Access level (public|restricted)
         #[arg(long)]
         access: Option<String>,
-
-        /// Custom configuration file
-        #[arg(short, long)]
-        config: Option<PathBuf>,
 
         /// Skip all hooks
         #[arg(long)]
@@ -152,17 +151,80 @@ async fn run() -> Result<i32> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Publish { project_path, .. } => {
+        Commands::Publish {
+            project_path,
+            registry,
+            registries,
+            sequential,
+            max_concurrency,
+            continue_on_error,
+            dry_run,
+            non_interactive,
+            resume,
+            otp,
+            tag,
+            access,
+            skip_hooks,
+            hooks_only,
+        } => {
             let path = project_path.unwrap_or_else(|| PathBuf::from("."));
-            publish_command(path).await
+
+            // Check if batch mode (multiple registries)
+            if let Some(registries_str) = registries {
+                let registries_vec: Vec<String> = registries_str
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .collect();
+
+                publish_batch_command(
+                    path,
+                    registries_vec,
+                    sequential,
+                    max_concurrency,
+                    continue_on_error,
+                    dry_run,
+                    non_interactive,
+                    resume,
+                    otp,
+                    tag,
+                    access,
+                    skip_hooks,
+                    hooks_only,
+                )
+                .await
+            } else {
+                publish_command(
+                    path,
+                    registry,
+                    dry_run,
+                    non_interactive,
+                    resume,
+                    otp,
+                    tag,
+                    access,
+                    skip_hooks,
+                    hooks_only,
+                )
+                .await
+            }
         }
-        Commands::Check { project_path, registry } => {
+        Commands::Check {
+            project_path,
+            registry,
+        } => {
             let path = project_path.unwrap_or_else(|| PathBuf::from("."));
             check_command(path, registry).await
         }
-        Commands::Stats { project_path, .. } => {
+        Commands::Stats {
+            project_path,
+            registry,
+            package,
+            success_only,
+            failures_only,
+            days,
+        } => {
             let path = project_path.unwrap_or_else(|| PathBuf::from("."));
-            stats_command(path).await
+            stats_command(path, registry, package, success_only, failures_only, days).await
         }
         Commands::Init { project_path, force } => {
             let path = project_path.unwrap_or_else(|| PathBuf::from("."));
@@ -171,12 +233,129 @@ async fn run() -> Result<i32> {
     }
 }
 
-async fn publish_command(_project_path: PathBuf) -> Result<i32> {
+async fn publish_command(
+    project_path: PathBuf,
+    registry: Option<String>,
+    dry_run: bool,
+    non_interactive: bool,
+    resume: bool,
+    otp: Option<String>,
+    tag: Option<String>,
+    access: Option<String>,
+    skip_hooks: bool,
+    hooks_only: bool,
+) -> Result<i32> {
     println!("\n📦 package-publisher\n");
-    eprintln!("⚠️  Publish command not yet fully implemented");
-    eprintln!("This requires the orchestration layer (PackagePublisher, BatchPublisher)");
-    eprintln!("which will be implemented in a future task.\n");
-    Ok(1)
+
+    let mut publisher = PackagePublisher::new(&project_path);
+
+    let options = PublishOptions {
+        registry,
+        dry_run,
+        non_interactive,
+        resume,
+        skip_hooks,
+        hooks_only,
+        otp,
+        tag,
+        access,
+    };
+
+    match publisher.publish(options).await {
+        Ok(report) => {
+            // Record analytics
+            let mut analytics = PublishAnalytics::new(&project_path);
+            if let Err(e) = analytics.initialize().await {
+                eprintln!("⚠️  Failed to initialize analytics: {}", e);
+            }
+            if let Err(e) = analytics.record_publish(&report).await {
+                eprintln!("⚠️  Failed to record analytics: {}", e);
+            }
+
+            if report.success {
+                println!("\n✅ Publishing completed successfully!");
+                Ok(0)
+            } else {
+                println!("\n❌ Publishing failed");
+                for error in &report.errors {
+                    eprintln!("  - {}", error);
+                }
+                Ok(1)
+            }
+        }
+        Err(e) => {
+            eprintln!("\n❌ Publishing failed: {}", e);
+            Ok(1)
+        }
+    }
+}
+
+async fn publish_batch_command(
+    project_path: PathBuf,
+    registries: Vec<String>,
+    sequential: bool,
+    max_concurrency: usize,
+    continue_on_error: bool,
+    dry_run: bool,
+    non_interactive: bool,
+    resume: bool,
+    otp: Option<String>,
+    tag: Option<String>,
+    access: Option<String>,
+    skip_hooks: bool,
+    hooks_only: bool,
+) -> Result<i32> {
+    println!("\n📦 package-publisher (Batch Mode)\n");
+
+    let batch_publisher = BatchPublisher::new(&project_path);
+
+    let batch_options = BatchPublishOptions {
+        sequential,
+        continue_on_error,
+        max_concurrency,
+        publish_options: PublishOptions {
+            registry: None, // Will be set per-registry
+            dry_run,
+            non_interactive,
+            resume,
+            skip_hooks,
+            hooks_only,
+            otp,
+            tag,
+            access,
+        },
+    };
+
+    match batch_publisher
+        .publish_to_multiple(registries, batch_options)
+        .await
+    {
+        Ok(result) => {
+            // Record analytics for each publish
+            let mut analytics = PublishAnalytics::new(&project_path);
+            if let Err(e) = analytics.initialize().await {
+                eprintln!("⚠️  Failed to initialize analytics: {}", e);
+            }
+
+            for (_, report) in &result.results {
+                if let Err(e) = analytics.record_publish(report).await {
+                    eprintln!("⚠️  Failed to record analytics for {}: {}", report.registry, e);
+                }
+            }
+
+            if result.success {
+                println!("\n✅ Batch publishing completed successfully!");
+                Ok(0)
+            } else {
+                println!("\n❌ Batch publishing completed with errors");
+                Ok(1)
+            }
+        }
+        Err(e) => {
+            eprintln!("\n❌ Batch publishing failed: {}", e);
+            Ok(1)
+        }
+    }
 }
 
 async fn check_command(project_path: PathBuf, registry_filter: Option<String>) -> Result<i32> {
@@ -245,12 +424,37 @@ async fn check_command(project_path: PathBuf, registry_filter: Option<String>) -
     Ok(0)
 }
 
-async fn stats_command(_project_path: PathBuf) -> Result<i32> {
+async fn stats_command(
+    project_path: PathBuf,
+    registry: Option<String>,
+    package: Option<String>,
+    success_only: bool,
+    failures_only: bool,
+    days: usize,
+) -> Result<i32> {
     println!("\n📊 Publishing Statistics\n");
-    eprintln!("⚠️  Stats command not yet fully implemented");
-    eprintln!("This requires the PublishAnalytics component");
-    eprintln!("which will be implemented in a future task.\n");
-    Ok(1)
+
+    let mut analytics = PublishAnalytics::new(&project_path);
+    analytics.initialize().await?;
+
+    // Calculate start date from days
+    let start_date = chrono::Utc::now() - chrono::Duration::days(days as i64);
+
+    let options = AnalyticsOptions {
+        registry,
+        package_name: package,
+        start_date: Some(start_date),
+        end_date: None,
+        success_only,
+        failures_only,
+        limit: None,
+    };
+
+    let report = analytics.generate_report(&options).await?;
+
+    println!("{}", report.markdown_summary);
+
+    Ok(0)
 }
 
 async fn init_command(_project_path: PathBuf, _force: bool) -> Result<i32> {
