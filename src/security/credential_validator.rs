@@ -320,7 +320,7 @@ mod tests {
     fn test_validate_aws_key_valid() {
         let validator = CredentialValidator::new();
         let key = "AKIAIOSFODNN7EXAMPLE"; // AWS example key
-        let result = validator.validate_aws_key(key);
+        let _result = validator.validate_aws_key(key);
 
         // Note: This will fail entropy check because "EXAMPLE" is low entropy
         // but format is valid
