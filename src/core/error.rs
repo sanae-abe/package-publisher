@@ -67,6 +67,10 @@ pub enum PublishError {
     // Command execution errors
     #[error("[{registry}] コマンド実行エラー: {message}")]
     CommandError { registry: String, message: String },
+
+    // Configuration errors
+    #[error("設定エラー: {0}")]
+    ConfigError(String),
 }
 
 impl PublishError {
@@ -90,6 +94,7 @@ impl PublishError {
             | Self::RollbackFailed { registry }
             | Self::RollbackNotSupported { registry }
             | Self::CommandError { registry, .. } => registry,
+            Self::ConfigError(_) => "config",
         }
     }
 
@@ -170,6 +175,10 @@ impl PublishError {
                 "コマンドの出力を確認してください",
                 "必要な依存関係がインストールされているか確認してください",
             ],
+            Self::ConfigError(_) => vec![
+                "設定ファイルの構文を確認してください",
+                ".publish-config.yamlのフォーマットが正しいか確認してください",
+            ],
         }
     }
 
@@ -193,6 +202,7 @@ impl PublishError {
             Self::RollbackFailed { .. } => "ROLLBACK_FAILED",
             Self::RollbackNotSupported { .. } => "ROLLBACK_NOT_SUPPORTED",
             Self::CommandError { .. } => "COMMAND_ERROR",
+            Self::ConfigError(_) => "CONFIG_ERROR",
         }
     }
 }
