@@ -237,15 +237,16 @@ impl PluginLoader {
     pub fn load_plugin(
         &self,
         registry_type: RegistryType,
+        project_path: &str,
     ) -> anyhow::Result<Arc<dyn RegistryPlugin>> {
         match registry_type {
             RegistryType::Npm => {
                 use crate::plugins::npm_plugin::NpmPlugin;
-                Ok(Arc::new(NpmPlugin::new()))
+                Ok(Arc::new(NpmPlugin::new(std::path::PathBuf::from(project_path))))
             }
             RegistryType::Crates => {
                 use crate::plugins::crates_io_plugin::CratesIoPlugin;
-                Ok(Arc::new(CratesIoPlugin::new()))
+                Ok(Arc::new(CratesIoPlugin::new(std::path::PathBuf::from(project_path))))
             }
             RegistryType::PyPI => {
                 use crate::plugins::pypi_plugin::PyPiPlugin;
@@ -253,7 +254,7 @@ impl PluginLoader {
             }
             RegistryType::Homebrew => {
                 use crate::plugins::homebrew_plugin::HomebrewPlugin;
-                Ok(Arc::new(HomebrewPlugin::new()))
+                Ok(Arc::new(HomebrewPlugin::new(std::path::PathBuf::from(project_path))))
             }
         }
     }

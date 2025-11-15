@@ -394,7 +394,7 @@ async fn check_command(project_path: PathBuf, registry_filter: Option<String>) -
         println!("\n📦 {}:", registry_name);
 
         // Load and validate
-        let plugin = loader.load_plugin(plugin_info.registry_type)?;
+        let plugin = loader.load_plugin(plugin_info.registry_type, project_path.to_str().unwrap())?;
 
         match plugin.validate().await {
             Ok(result) => {

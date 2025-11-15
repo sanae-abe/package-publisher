@@ -203,7 +203,7 @@ impl PackagePublisher {
             .find(|p| p.registry_type.as_str() == registry_name)
             .ok_or_else(|| anyhow::anyhow!("Registry not detected: {}", registry_name))?;
 
-        let plugin = self.plugin_loader.load_plugin(plugin_info.registry_type)?;
+        let plugin = self.plugin_loader.load_plugin(plugin_info.registry_type, self.project_path.to_str().unwrap())?;
 
         println!("📦 Registry selected: {}\n", registry_name);
 
