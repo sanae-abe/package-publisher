@@ -148,8 +148,14 @@ impl ManifestValidator {
             Some(ManifestMetadata {
                 name: name.to_string(),
                 version: version.to_string(),
-                description: parsed.get("description").and_then(|v| v.as_str()).map(String::from),
-                license: parsed.get("license").and_then(|v| v.as_str()).map(String::from),
+                description: parsed
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                license: parsed
+                    .get("license")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
             })
         } else {
             None
@@ -218,8 +224,14 @@ impl ManifestValidator {
             Some(ManifestMetadata {
                 name: name.to_string(),
                 version: version.to_string(),
-                description: package.get("description").and_then(|v| v.as_str()).map(String::from),
-                license: package.get("license").and_then(|v| v.as_str()).map(String::from),
+                description: package
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                license: package
+                    .get("license")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
             })
         } else {
             None
@@ -272,7 +284,8 @@ impl ManifestValidator {
         // Extract version from url
         let version = content
             .lines()
-            .find(|line| line.trim().starts_with("url ")).map(|_| "unknown".to_string()); // Simplified for now
+            .find(|line| line.trim().starts_with("url "))
+            .map(|_| "unknown".to_string()); // Simplified for now
 
         // Extract metadata
         let metadata = if let (Some(name), Some(version)) = (name, version) {
@@ -436,17 +449,13 @@ end
 
     #[tokio::test]
     async fn test_validate_npm_file() {
-        use tempfile::TempDir;
         use std::io::Write;
+        use tempfile::TempDir;
 
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("package.json");
         let mut file = std::fs::File::create(&file_path).unwrap();
-        writeln!(
-            file,
-            r#"{{"name": "test", "version": "1.0.0"}}"#
-        )
-        .unwrap();
+        writeln!(file, r#"{{"name": "test", "version": "1.0.0"}}"#).unwrap();
 
         let validator = ManifestValidator::new();
         let result = validator

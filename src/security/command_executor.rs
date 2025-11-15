@@ -30,15 +30,7 @@ use thiserror::Error;
 ///
 /// Only these commands can be executed via SafeCommandExecutor.
 /// This prevents arbitrary command execution and potential security vulnerabilities.
-const ALLOWED_COMMANDS: &[&str] = &[
-    "npm",
-    "cargo",
-    "python",
-    "pip",
-    "twine",
-    "brew",
-    "git",
-];
+const ALLOWED_COMMANDS: &[&str] = &["npm", "cargo", "python", "pip", "twine", "brew", "git"];
 
 /// Errors that can occur during command execution
 #[derive(Error, Debug)]
@@ -216,7 +208,10 @@ mod tests {
         // Attempt command injection via semicolon
         let result = executor.execute("npm", &["install; rm -rf /"]);
         // Should execute safely (npm will fail but no injection)
-        assert!(result.is_ok() || result.is_err(), "Arguments should be safely escaped");
+        assert!(
+            result.is_ok() || result.is_err(),
+            "Arguments should be safely escaped"
+        );
     }
 
     #[test]
@@ -236,7 +231,10 @@ mod tests {
         // This command should timeout (sleep longer than timeout)
         let result = executor.execute("sleep", &["5"]);
         // Note: sleep might not be in whitelist, adjust test if needed
-        assert!(result.is_err(), "Long-running command should timeout or be rejected");
+        assert!(
+            result.is_err(),
+            "Long-running command should timeout or be rejected"
+        );
     }
 
     #[test]
@@ -247,7 +245,11 @@ mod tests {
         match result {
             Ok(output) => {
                 assert!(!output.stdout.is_empty(), "Should capture stdout");
-                assert_eq!(output.status.code(), Some(0), "npm --version should succeed");
+                assert_eq!(
+                    output.status.code(),
+                    Some(0),
+                    "npm --version should succeed"
+                );
             }
             Err(e) => panic!("Unexpected error: {}", e),
         }
@@ -259,6 +261,9 @@ mod tests {
         // Arguments with quotes should be safely handled
         let result = executor.execute("npm", &["info", "\"malicious-package\""]);
         // Should not cause injection, npm will handle quotes safely
-        assert!(result.is_ok() || result.is_err(), "Quotes should be sanitized");
+        assert!(
+            result.is_ok() || result.is_err(),
+            "Quotes should be sanitized"
+        );
     }
 }

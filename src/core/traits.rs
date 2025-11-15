@@ -233,10 +233,7 @@ pub trait RegistryPlugin: Send + Sync {
     /// # Arguments
     ///
     /// * `options` - Optional publish options
-    async fn publish(
-        &self,
-        options: Option<PublishOptions>,
-    ) -> anyhow::Result<PublishResult>;
+    async fn publish(&self, options: Option<PublishOptions>) -> anyhow::Result<PublishResult>;
 
     /// Verify that the package was published successfully
     async fn verify(&self) -> anyhow::Result<VerificationResult>;
@@ -425,10 +422,9 @@ mod tests {
     #[test]
     fn test_publish_options_with_extra_fields() {
         let mut options = PublishOptions::default();
-        options.extra.insert(
-            "custom_flag".to_string(),
-            serde_json::Value::Bool(true),
-        );
+        options
+            .extra
+            .insert("custom_flag".to_string(), serde_json::Value::Bool(true));
 
         let json = serde_json::to_string(&options).unwrap();
         assert!(json.contains("\"custom_flag\":true"));

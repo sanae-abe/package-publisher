@@ -120,15 +120,18 @@ impl ConfigLoader {
 
     /// Load global configuration from ~/.publish-config.yaml
     async fn load_global_config() -> Result<Option<PublishConfig>, PublishError> {
-        let home_dir = env::var("HOME")
-            .map_err(|_| PublishError::ConfigError("HOME environment variable not set".to_string()))?;
+        let home_dir = env::var("HOME").map_err(|_| {
+            PublishError::ConfigError("HOME environment variable not set".to_string())
+        })?;
         let global_config_path = PathBuf::from(home_dir).join(CONFIG_FILENAME);
 
         Self::load_config_file(&global_config_path).await
     }
 
     /// Load project configuration from ./.publish-config.yaml
-    async fn load_project_config(project_path: &Path) -> Result<Option<PublishConfig>, PublishError> {
+    async fn load_project_config(
+        project_path: &Path,
+    ) -> Result<Option<PublishConfig>, PublishError> {
         let project_config_path = project_path.join(CONFIG_FILENAME);
 
         Self::load_config_file(&project_config_path).await
@@ -137,25 +140,34 @@ impl ConfigLoader {
     /// Load configuration from YAML file
     fn load_config_file(
         file_path: &Path,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<PublishConfig>, PublishError>> + Send + '_>> {
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = Result<Option<PublishConfig>, PublishError>>
+                + Send
+                + '_,
+        >,
+    > {
         Box::pin(async move {
             // Check if file exists
             if !file_path.exists() {
                 return Ok(None);
             }
 
-            let content = fs::read_to_string(file_path)
-                .await
-                .map_err(|e| PublishError::ConfigError(format!("Failed to read config file: {}", e)))?;
+            let content = fs::read_to_string(file_path).await.map_err(|e| {
+                PublishError::ConfigError(format!("Failed to read config file: {}", e))
+            })?;
 
-            let config: PublishConfig = serde_yaml::from_str(&content)
-                .map_err(|e| PublishError::ConfigError(format!("Failed to parse YAML config: {}", e)))?;
+            let config: PublishConfig = serde_yaml::from_str(&content).map_err(|e| {
+                PublishError::ConfigError(format!("Failed to parse YAML config: {}", e))
+            })?;
 
             // Handle extends if present
             if let Some(extends_path) = &config.extends {
                 let base_path = file_path
                     .parent()
-                    .ok_or_else(|| PublishError::ConfigError("Invalid config file path".to_string()))?
+                    .ok_or_else(|| {
+                        PublishError::ConfigError("Invalid config file path".to_string())
+                    })?
                     .join(extends_path);
 
                 if let Some(base_config) = Self::load_config_file(&base_path).await? {
@@ -207,11 +219,7 @@ impl ConfigLoader {
             has_changes = true;
         }
 
-        if has_changes {
-            Some(config)
-        } else {
-            None
-        }
+        if has_changes { Some(config) } else { None }
     }
 
     /// Merge multiple configurations with priority
@@ -625,7 +633,13 @@ mod tests {
         let config = ConfigLoader::load_env_config(&env).unwrap();
 
         assert_eq!(
-            config.project.as_ref().unwrap().default_registry.as_ref().unwrap(),
+            config
+                .project
+                .as_ref()
+                .unwrap()
+                .default_registry
+                .as_ref()
+                .unwrap(),
             "npm"
         );
         assert_eq!(
@@ -718,7 +732,14 @@ mod tests {
         let merged = ConfigLoader::merge_configs(vec![config1, config2]);
 
         assert_eq!(
-            merged.registries.npm.as_ref().unwrap().tag.as_ref().unwrap(),
+            merged
+                .registries
+                .npm
+                .as_ref()
+                .unwrap()
+                .tag
+                .as_ref()
+                .unwrap(),
             "beta"
         );
         assert_eq!(

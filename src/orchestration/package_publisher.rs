@@ -1,5 +1,3 @@
-
-
 //! Package Publisher - Main orchestrator for package publishing
 //!
 //! Manages the complete publishing workflow including:
@@ -18,7 +16,7 @@ use crate::security::credential_validator::CredentialValidator;
 use crate::security::secrets_scanner::SecretsScanner;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tokio::io::{self, AsyncBufReadExt, BufReader, AsyncWriteExt};
+use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 /// Publishing options passed from CLI or config
 #[derive(Debug, Clone, Default)]
@@ -120,7 +118,10 @@ impl PackagePublisher {
     /// # Arguments
     ///
     /// * `cli_args` - Optional CLI arguments to override config file
-    pub async fn load_config(&mut self, _cli_args: Option<PublishOptions>) -> Result<(), anyhow::Error> {
+    pub async fn load_config(
+        &mut self,
+        _cli_args: Option<PublishOptions>,
+    ) -> Result<(), anyhow::Error> {
         // Load configuration
         use crate::core::config_loader::ConfigLoadOptions;
         use std::collections::HashMap;
@@ -131,14 +132,21 @@ impl PackagePublisher {
             env: HashMap::new(),
         };
 
-        self.config = Some(ConfigLoader::load(options).await.map_err(|e| anyhow::anyhow!("{}", e))?);
+        self.config = Some(
+            ConfigLoader::load(options)
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?,
+        );
 
         Ok(())
     }
 
     /// Auto-detect applicable registries (parallel execution for performance)
     pub async fn detect_registries(&self) -> Result<Vec<DetectedPlugin>, anyhow::Error> {
-        let detected = self.plugin_loader.detect_plugins(&self.project_path).await?;
+        let detected = self
+            .plugin_loader
+            .detect_plugins(&self.project_path)
+            .await?;
 
         if detected.is_empty() {
             return Err(anyhow::anyhow!("No registries detected"));
@@ -156,7 +164,10 @@ impl PackagePublisher {
     /// # Returns
     ///
     /// Publishing report with detailed results
-    pub async fn publish(&mut self, options: PublishOptions) -> Result<PublishReport, anyhow::Error> {
+    pub async fn publish(
+        &mut self,
+        options: PublishOptions,
+    ) -> Result<PublishReport, anyhow::Error> {
         let start_time = Instant::now();
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
@@ -171,23 +182,30 @@ impl PackagePublisher {
 
         // 1. Restore state if resume requested
         if effective_options.resume {
-            self.state_machine.transition(PublishState::Initial, None).await?;
+            self.state_machine
+                .transition(PublishState::Initial, None)
+                .await?;
             let restored = self.state_machine.restore().await?;
             if !restored {
                 return Err(anyhow::anyhow!("State file not found or corrupted"));
             }
         } else {
             self.state_machine.clear().await?;
-            self.state_machine.transition(PublishState::Initial, None).await?;
+            self.state_machine
+                .transition(PublishState::Initial, None)
+                .await?;
         }
 
         // 2. Detect registries
-        self.state_machine.transition(PublishState::Detecting, None).await?;
+        self.state_machine
+            .transition(PublishState::Detecting, None)
+            .await?;
         let detected_registries = self.detect_registries().await?;
 
         println!("\nDetected registries:");
         for plugin in &detected_registries {
-            println!("  - {} (confidence: {:.0}%)",
+            println!(
+                "  - {} (confidence: {:.0}%)",
                 plugin.registry_type.as_str(),
                 plugin.confidence * 100.0
             );
@@ -195,7 +213,9 @@ impl PackagePublisher {
         println!();
 
         // Use specified registry or first detected
-        let registry_name = effective_options.registry.clone()
+        let registry_name = effective_options
+            .registry
+            .clone()
             .unwrap_or_else(|| detected_registries[0].registry_type.as_str().to_string());
 
         let plugin_info = detected_registries
@@ -203,7 +223,10 @@ impl PackagePublisher {
             .find(|p| p.registry_type.as_str() == registry_name)
             .ok_or_else(|| anyhow::anyhow!("Registry not detected: {}", registry_name))?;
 
-        let plugin = self.plugin_loader.load_plugin(plugin_info.registry_type, self.project_path.to_str().unwrap())?;
+        let plugin = self.plugin_loader.load_plugin(
+            plugin_info.registry_type,
+            self.project_path.to_str().unwrap(),
+        )?;
 
         println!("📦 Registry selected: {}\n", registry_name);
 
@@ -213,10 +236,16 @@ impl PackagePublisher {
         if secrets_scanning_enabled {
             println!("🔒 Security scan...");
 
-            let scan_result = self.secrets_scanner.scan_project(&self.project_path).await?;
+            let scan_result = self
+                .secrets_scanner
+                .scan_project(&self.project_path)
+                .await?;
 
             if !scan_result.findings.is_empty() {
-                warnings.push(format!("{} potential secrets detected", scan_result.findings.len()));
+                warnings.push(format!(
+                    "{} potential secrets detected",
+                    scan_result.findings.len()
+                ));
 
                 if !effective_options.non_interactive {
                     println!("⚠️  Potential secrets detected:");
@@ -225,11 +254,16 @@ impl PackagePublisher {
                     }
 
                     if !self.confirm("⚠️  Continue with publishing?").await? {
-                        return Err(anyhow::anyhow!("{} secrets detected", scan_result.findings.len()));
+                        return Err(anyhow::anyhow!(
+                            "{} secrets detected",
+                            scan_result.findings.len()
+                        ));
                     }
                 } else {
-                    println!("  ⚠️  {} potential secrets detected (non-interactive mode, continuing...)",
-                        scan_result.findings.len());
+                    println!(
+                        "  ⚠️  {} potential secrets detected (non-interactive mode, continuing...)",
+                        scan_result.findings.len()
+                    );
                 }
             } else {
                 println!("  ✅ No secrets detected\n");
@@ -237,7 +271,9 @@ impl PackagePublisher {
         }
 
         // 4. Validation
-        self.state_machine.transition(PublishState::Validating, None).await?;
+        self.state_machine
+            .transition(PublishState::Validating, None)
+            .await?;
         println!("🔍 Validating package...");
 
         let validation_result = plugin.validate().await?;
@@ -261,23 +297,26 @@ impl PackagePublisher {
 
         println!("  ✅ Validation successful\n");
 
-        let package_version = validation_result.metadata
+        let package_version = validation_result
+            .metadata
             .as_ref()
             .and_then(|m| m.get("version"))
             .map(|v| v.to_string())
             .unwrap_or_else(|| "unknown".to_string());
-        let package_name = validation_result.metadata
+        let package_name = validation_result
+            .metadata
             .as_ref()
             .and_then(|m| m.get("packageName").or_else(|| m.get("name")))
             .map(|n| n.to_string())
             .unwrap_or_else(|| "unknown".to_string());
 
         // 5. Dry-run (if not skipped)
-        let should_skip_dry_run = effective_options.dry_run
-            || effective_options.resume;
+        let should_skip_dry_run = effective_options.dry_run || effective_options.resume;
 
         if !should_skip_dry_run {
-            self.state_machine.transition(PublishState::DryRun, None).await?;
+            self.state_machine
+                .transition(PublishState::DryRun, None)
+                .await?;
             println!("🧪 Executing dry-run...");
 
             let dry_run_result = plugin.dry_run().await?;
@@ -319,13 +358,17 @@ impl PackagePublisher {
         // 6. Confirmation (interactive mode)
         let should_confirm = !effective_options.non_interactive
             && !effective_options.resume
-            && self.config.as_ref()
+            && self
+                .config
+                .as_ref()
                 .and_then(|c| c.publish.as_ref())
                 .and_then(|p| p.confirm)
                 .unwrap_or(true);
 
         if should_confirm {
-            self.state_machine.transition(PublishState::Confirming, None).await?;
+            self.state_machine
+                .transition(PublishState::Confirming, None)
+                .await?;
 
             println!("📋 Pre-publish checklist:");
             println!("  ✅ Registry: {}", registry_name);
@@ -339,7 +382,9 @@ impl PackagePublisher {
 
             if !self.confirm("Proceed with publishing?").await? {
                 println!("Publishing cancelled by user");
-                self.state_machine.transition(PublishState::Failed, None).await?;
+                self.state_machine
+                    .transition(PublishState::Failed, None)
+                    .await?;
                 return Ok(PublishReport {
                     success: false,
                     registry: registry_name,
@@ -373,27 +418,41 @@ impl PackagePublisher {
         }
 
         // 7. Publish
-        self.state_machine.transition(PublishState::Publishing, None).await?;
+        self.state_machine
+            .transition(PublishState::Publishing, None)
+            .await?;
         println!("📤 Publishing...");
 
-        let publish_result = plugin.publish(Some(effective_options.to_plugin_options())).await?;
+        let publish_result = plugin
+            .publish(Some(effective_options.to_plugin_options()))
+            .await?;
 
         if !publish_result.success {
-            let error_msg = publish_result.error.unwrap_or_else(|| "Publishing failed".to_string());
-            return Err(anyhow::anyhow!("Publishing failed for {}: {}", registry_name, error_msg));
+            let error_msg = publish_result
+                .error
+                .unwrap_or_else(|| "Publishing failed".to_string());
+            return Err(anyhow::anyhow!(
+                "Publishing failed for {}: {}",
+                registry_name,
+                error_msg
+            ));
         }
 
         println!("  ✅ Published successfully\n");
 
         // 8. Verify (if enabled)
-        let should_verify = self.config.as_ref()
+        let should_verify = self
+            .config
+            .as_ref()
             .and_then(|c| c.publish.as_ref())
             .and_then(|p| p.verify)
             .unwrap_or(true);
 
         let mut verification_url = None;
         if should_verify {
-            self.state_machine.transition(PublishState::Verifying, None).await?;
+            self.state_machine
+                .transition(PublishState::Verifying, None)
+                .await?;
             println!("🔍 Verifying publication...");
 
             match plugin.verify().await {
@@ -405,7 +464,9 @@ impl PackagePublisher {
                             verification_url = Some(url.clone());
                         }
                     } else {
-                        let error_msg = verify_result.error.unwrap_or_else(|| "Unknown error".to_string());
+                        let error_msg = verify_result
+                            .error
+                            .unwrap_or_else(|| "Unknown error".to_string());
                         warnings.push(format!("Verification failed: {}", error_msg));
                         println!("  ⚠️  Verification failed (but publishing succeeded)");
                         println!("    {}", error_msg);
@@ -419,7 +480,9 @@ impl PackagePublisher {
         }
 
         // Success
-        self.state_machine.transition(PublishState::Success, None).await?;
+        self.state_machine
+            .transition(PublishState::Success, None)
+            .await?;
 
         Ok(PublishReport {
             success: true,
@@ -444,9 +507,10 @@ impl PackagePublisher {
         // Merge registry from config
         if options.registry.is_none()
             && let Some(ref project_config) = config.project
-                && let Some(ref default_reg) = project_config.default_registry {
-                    options.registry = Some(default_reg.clone());
-                }
+            && let Some(ref default_reg) = project_config.default_registry
+        {
+            options.registry = Some(default_reg.clone());
+        }
 
         options
     }

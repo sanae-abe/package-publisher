@@ -266,7 +266,9 @@ impl SecretsScanner {
 
         for (line_idx, line) in lines.iter().enumerate() {
             // Fast pre-filter with aho-corasick
-            if let Some(ref ac) = self.aho_corasick && !ac.is_match(line) {
+            if let Some(ref ac) = self.aho_corasick
+                && !ac.is_match(line)
+            {
                 continue; // Skip lines with no potential secret prefixes
             }
 
@@ -594,20 +596,20 @@ mod tests {
 #[cfg(test)]
 mod bench_tests {
     use super::*;
+    use std::io::Write;
     use std::time::Instant;
     use tempfile::TempDir;
-    use std::io::Write;
 
     #[tokio::test]
     async fn test_performance_1000_files() {
         // Create temporary directory with 1000 files
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create 1000 test files with various content
         for i in 0..1000 {
             let file_path = temp_dir.path().join(format!("file_{}.rs", i));
             let mut file = std::fs::File::create(&file_path).unwrap();
-            
+
             // Mix of files with and without secrets
             if i % 10 == 0 {
                 writeln!(file, "const API_KEY = \"AKIAIOSFODNN7EXAMPLE\";").unwrap();
@@ -617,23 +619,29 @@ mod bench_tests {
         }
 
         let scanner = SecretsScanner::new();
-        
+
         // Measure scan time
         let start = Instant::now();
         let report = scanner.scan_project(temp_dir.path()).await.unwrap();
         let duration = start.elapsed();
-        
+
         println!("Scanned {} files in {:?}", report.scanned_files, duration);
         println!("Found {} secrets", report.findings.len());
-        
+
         // Assert performance target: < 500ms for 1000 files
-        assert!(duration.as_millis() < 500, 
-            "Performance test failed: took {}ms (target: <500ms)", 
-            duration.as_millis());
-        
+        assert!(
+            duration.as_millis() < 500,
+            "Performance test failed: took {}ms (target: <500ms)",
+            duration.as_millis()
+        );
+
         // Verify correct results
         assert_eq!(report.scanned_files, 1000);
         // Note: Each AWS key matches 2 patterns (Generic API Key + AWS Access Key)
-        assert!(report.findings.len() >= 100, "Expected at least 100 findings, got {}", report.findings.len());
+        assert!(
+            report.findings.len() >= 100,
+            "Expected at least 100 findings, got {}",
+            report.findings.len()
+        );
     }
 }

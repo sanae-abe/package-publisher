@@ -9,8 +9,8 @@
 //! - Formula verification via brew info
 
 use crate::core::traits::{
-    DryRunResult, PublishOptions, PublishResult, RegistryPlugin, ValidationError,
-    ValidationResult, ValidationWarning, VerificationResult,
+    DryRunResult, PublishOptions, PublishResult, RegistryPlugin, ValidationError, ValidationResult,
+    ValidationWarning, VerificationResult,
 };
 use async_trait::async_trait;
 use regex::Regex;
@@ -525,13 +525,15 @@ impl RegistryPlugin for HomebrewPlugin {
         plugin.find_formula_file().await?;
         plugin.load_formula_metadata().await?;
 
-        let formula_meta = plugin.formula_metadata.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("Formula metadata not loaded")
-        })?;
+        let formula_meta = plugin
+            .formula_metadata
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Formula metadata not loaded"))?;
 
-        let formula_name = formula_meta.name.as_deref().ok_or_else(|| {
-            anyhow::anyhow!("Formula name not found")
-        })?;
+        let formula_name = formula_meta
+            .name
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Formula name not found"))?;
 
         // Try to find formula in Homebrew
         match plugin.run_brew(&["info", formula_name]).await {
@@ -587,7 +589,10 @@ mod tests {
         writeln!(file, "class Test < Formula\nend").unwrap();
 
         let plugin = HomebrewPlugin::new(temp_dir.path().to_path_buf());
-        let result = plugin.detect(temp_dir.path().to_str().unwrap()).await.unwrap();
+        let result = plugin
+            .detect(temp_dir.path().to_str().unwrap())
+            .await
+            .unwrap();
         assert!(result);
     }
 
@@ -595,15 +600,24 @@ mod tests {
     async fn test_detect_without_formula() {
         let temp_dir = TempDir::new().unwrap();
         let plugin = HomebrewPlugin::new(temp_dir.path().to_path_buf());
-        let result = plugin.detect(temp_dir.path().to_str().unwrap()).await.unwrap();
+        let result = plugin
+            .detect(temp_dir.path().to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!result);
     }
 
     #[test]
     fn test_class_name_to_formula_name() {
         let plugin = HomebrewPlugin::new(PathBuf::from("."));
-        assert_eq!(plugin.class_name_to_formula_name("MyAwesomeTool"), "my-awesome-tool");
-        assert_eq!(plugin.class_name_to_formula_name("HTTPServer"), "http-server");
+        assert_eq!(
+            plugin.class_name_to_formula_name("MyAwesomeTool"),
+            "my-awesome-tool"
+        );
+        assert_eq!(
+            plugin.class_name_to_formula_name("HTTPServer"),
+            "http-server"
+        );
         assert_eq!(plugin.class_name_to_formula_name("Test"), "test");
     }
 
@@ -628,7 +642,10 @@ end
         let metadata = plugin.parse_formula(content);
         assert_eq!(metadata.name, Some("my-awesome-tool".to_string()));
         assert_eq!(metadata.version, Some("1.0.0".to_string()));
-        assert_eq!(metadata.url, Some("https://example.com/my-awesome-tool-1.0.0.tar.gz".to_string()));
+        assert_eq!(
+            metadata.url,
+            Some("https://example.com/my-awesome-tool-1.0.0.tar.gz".to_string())
+        );
         assert_eq!(metadata.sha256, Some("abc123".to_string()));
         assert_eq!(metadata.homepage, Some("https://example.com".to_string()));
         assert_eq!(metadata.description, Some("An awesome tool".to_string()));
@@ -652,7 +669,9 @@ end
         std::fs::create_dir(&formula_dir).unwrap();
         let formula = formula_dir.join("test.rb");
         let mut file = std::fs::File::create(&formula).unwrap();
-        writeln!(file, r#"
+        writeln!(
+            file,
+            r#"
 class Test < Formula
   desc "Test formula"
   homepage "https://example.com"
@@ -661,7 +680,9 @@ class Test < Formula
   version "1.0.0"
   license "MIT"
 end
-"#).unwrap();
+"#
+        )
+        .unwrap();
 
         let plugin = HomebrewPlugin::new(temp_dir.path().to_path_buf());
         let result = plugin.validate().await.unwrap();

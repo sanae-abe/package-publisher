@@ -10,8 +10,8 @@
 //! - Rollback with unpublish/deprecate
 
 use crate::core::traits::{
-    DryRunResult, PublishOptions, PublishResult, RegistryPlugin, ValidationError,
-    ValidationResult, ValidationWarning, VerificationResult,
+    DryRunResult, PublishOptions, PublishResult, RegistryPlugin, ValidationError, ValidationResult,
+    ValidationWarning, VerificationResult,
 };
 use async_trait::async_trait;
 use regex::Regex;
@@ -324,23 +324,25 @@ impl RegistryPlugin for NpmPlugin {
         // Run build script if exists
         if let Some(ref scripts) = pkg.scripts {
             if scripts.contains_key("build")
-                && let Err(e) = self.run_script("build").await {
-                    errors.push(ValidationError {
-                        field: "scripts.build".to_string(),
-                        message: format!("ビルドスクリプトの実行に失敗: {}", e),
-                        severity: "error".to_string(),
-                    });
-                }
+                && let Err(e) = self.run_script("build").await
+            {
+                errors.push(ValidationError {
+                    field: "scripts.build".to_string(),
+                    message: format!("ビルドスクリプトの実行に失敗: {}", e),
+                    severity: "error".to_string(),
+                });
+            }
 
             // Run test script if exists
             if scripts.contains_key("test")
-                && let Err(e) = self.run_script("test").await {
-                    errors.push(ValidationError {
-                        field: "scripts.test".to_string(),
-                        message: format!("テストの実行に失敗: {}", e),
-                        severity: "error".to_string(),
-                    });
-                }
+                && let Err(e) = self.run_script("test").await
+            {
+                errors.push(ValidationError {
+                    field: "scripts.test".to_string(),
+                    message: format!("テストの実行に失敗: {}", e),
+                    severity: "error".to_string(),
+                });
+            }
 
             // Run lint script if exists
             if scripts.contains_key("lint") {
@@ -431,10 +433,11 @@ impl RegistryPlugin for NpmPlugin {
 
         // Add access control for scoped packages
         if let Some(ref access) = opts.access
-            && self.is_scoped_package(pkg.name.as_ref()) {
-                args.push("--access".to_string());
-                args.push(access.clone());
-            }
+            && self.is_scoped_package(pkg.name.as_ref())
+        {
+            args.push("--access".to_string());
+            args.push(access.clone());
+        }
 
         // Add tag
         if let Some(ref tag) = opts.tag {
@@ -474,7 +477,9 @@ impl RegistryPlugin for NpmPlugin {
         let content = fs::read_to_string(&package_json_path).await?;
         let pkg: PackageJson = serde_json::from_str(&content)?;
 
-        let package_name = pkg.name.ok_or_else(|| anyhow::anyhow!("Package name not found"))?;
+        let package_name = pkg
+            .name
+            .ok_or_else(|| anyhow::anyhow!("Package name not found"))?;
         let expected_version = pkg
             .version
             .ok_or_else(|| anyhow::anyhow!("Package version not found"))?;
@@ -483,12 +488,7 @@ impl RegistryPlugin for NpmPlugin {
             Ok(info) => {
                 // Check if expected version exists
                 if !info.versions.contains_key(&expected_version) {
-                    let available = info
-                        .versions
-                        .keys()
-                        .cloned()
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                    let available = info.versions.keys().cloned().collect::<Vec<_>>().join(", ");
                     return Ok(VerificationResult {
                         verified: false,
                         version: Some(expected_version.clone()),
@@ -561,7 +561,10 @@ mod tests {
         writeln!(file, r#"{{"name": "test"}}"#).unwrap();
 
         let plugin = NpmPlugin::new(temp_dir.path().to_path_buf());
-        let result = plugin.detect(temp_dir.path().to_str().unwrap()).await.unwrap();
+        let result = plugin
+            .detect(temp_dir.path().to_str().unwrap())
+            .await
+            .unwrap();
         assert!(result);
     }
 
@@ -569,7 +572,10 @@ mod tests {
     async fn test_detect_without_package_json() {
         let temp_dir = TempDir::new().unwrap();
         let plugin = NpmPlugin::new(temp_dir.path().to_path_buf());
-        let result = plugin.detect(temp_dir.path().to_str().unwrap()).await.unwrap();
+        let result = plugin
+            .detect(temp_dir.path().to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!result);
     }
 

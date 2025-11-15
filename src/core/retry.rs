@@ -161,16 +161,14 @@ impl RetryManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
     #[tokio::test]
     async fn test_retry_success_on_first_attempt() {
         let manager = RetryManager::new(RetryOptions::default());
 
-        let result = manager
-            .retry(|| async { Ok::<_, anyhow::Error>(42) })
-            .await;
+        let result = manager.retry(|| async { Ok::<_, anyhow::Error>(42) }).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);

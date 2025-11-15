@@ -176,28 +176,33 @@ impl PublishAnalytics {
     ///
     /// Filtered and sorted records
     pub fn get_records(&self, options: &AnalyticsOptions) -> Vec<AnalyticsRecord> {
-        let mut filtered: Vec<_> = self.records
+        let mut filtered: Vec<_> = self
+            .records
             .iter()
             .filter(|r| {
                 if let Some(ref registry) = options.registry
-                    && &r.registry != registry {
-                        return false;
-                    }
+                    && &r.registry != registry
+                {
+                    return false;
+                }
 
                 if let Some(ref package_name) = options.package_name
-                    && &r.package_name != package_name {
-                        return false;
-                    }
+                    && &r.package_name != package_name
+                {
+                    return false;
+                }
 
                 if let Some(start_date) = options.start_date
-                    && r.timestamp < start_date {
-                        return false;
-                    }
+                    && r.timestamp < start_date
+                {
+                    return false;
+                }
 
                 if let Some(end_date) = options.end_date
-                    && r.timestamp > end_date {
-                        return false;
-                    }
+                    && r.timestamp > end_date
+                {
+                    return false;
+                }
 
                 if options.success_only && !r.success {
                     return false;
@@ -272,7 +277,10 @@ impl PublishAnalytics {
     /// # Returns
     ///
     /// Comprehensive analytics report
-    pub async fn generate_report(&self, options: &AnalyticsOptions) -> Result<AnalyticsReport, anyhow::Error> {
+    pub async fn generate_report(
+        &self,
+        options: &AnalyticsOptions,
+    ) -> Result<AnalyticsReport, anyhow::Error> {
         let statistics = self.get_statistics(options);
 
         let mut recent_options = options.clone();
@@ -330,7 +338,10 @@ impl PublishAnalytics {
         Ok(())
     }
 
-    fn calculate_registry_statistics(&self, records: &[AnalyticsRecord]) -> HashMap<String, RegistryStatistics> {
+    fn calculate_registry_statistics(
+        &self,
+        records: &[AnalyticsRecord],
+    ) -> HashMap<String, RegistryStatistics> {
         let mut registry_map: HashMap<String, Vec<&AnalyticsRecord>> = HashMap::new();
 
         // Group records by registry
@@ -350,10 +361,7 @@ impl PublishAnalytics {
                 let total_duration: u64 = reg_records.iter().map(|r| r.duration).sum();
 
                 // Find the most recent publish
-                let most_recent = reg_records
-                    .iter()
-                    .max_by_key(|r| r.timestamp)
-                    .unwrap();
+                let most_recent = reg_records.iter().max_by_key(|r| r.timestamp).unwrap();
 
                 let stats = RegistryStatistics {
                     registry: registry.clone(),
@@ -412,24 +420,45 @@ impl PublishAnalytics {
 
         // Overall Statistics
         lines.push("## Overall Statistics\n".to_string());
-        lines.push(format!("- **Total Attempts**: {}", statistics.total_attempts));
+        lines.push(format!(
+            "- **Total Attempts**: {}",
+            statistics.total_attempts
+        ));
         lines.push(format!("- **Successful**: {}", statistics.success_count));
         lines.push(format!("- **Failed**: {}", statistics.failure_count));
-        lines.push(format!("- **Success Rate**: {:.2}%", statistics.success_rate));
-        lines.push(format!("- **Average Duration**: {:.2}s\n", statistics.average_duration / 1000.0));
+        lines.push(format!(
+            "- **Success Rate**: {:.2}%",
+            statistics.success_rate
+        ));
+        lines.push(format!(
+            "- **Average Duration**: {:.2}s\n",
+            statistics.average_duration / 1000.0
+        ));
 
         // Time Range
         if statistics.total_attempts > 0 {
             lines.push("### Time Range\n".to_string());
-            lines.push(format!("- **Start**: {}", statistics.time_range.start.to_rfc3339()));
-            lines.push(format!("- **End**: {}\n", statistics.time_range.end.to_rfc3339()));
+            lines.push(format!(
+                "- **Start**: {}",
+                statistics.time_range.start.to_rfc3339()
+            ));
+            lines.push(format!(
+                "- **End**: {}\n",
+                statistics.time_range.end.to_rfc3339()
+            ));
         }
 
         // Registry Statistics
         if !statistics.by_registry.is_empty() {
             lines.push("## Registry Statistics\n".to_string());
-            lines.push("| Registry | Attempts | Successes | Failures | Success Rate | Avg Duration |".to_string());
-            lines.push("|----------|----------|-----------|----------|--------------|--------------|".to_string());
+            lines.push(
+                "| Registry | Attempts | Successes | Failures | Success Rate | Avg Duration |"
+                    .to_string(),
+            );
+            lines.push(
+                "|----------|----------|-----------|----------|--------------|--------------|"
+                    .to_string(),
+            );
 
             for stats in statistics.by_registry.values() {
                 lines.push(format!(
@@ -448,17 +477,30 @@ impl PublishAnalytics {
         // Recent Publishes
         if !recent_publishes.is_empty() {
             lines.push("## Recent Publishes\n".to_string());
-            lines.push("| Timestamp | Registry | Package | Version | Status | Duration |".to_string());
-            lines.push("|-----------|----------|---------|---------|--------|----------|".to_string());
+            lines.push(
+                "| Timestamp | Registry | Package | Version | Status | Duration |".to_string(),
+            );
+            lines.push(
+                "|-----------|----------|---------|---------|--------|----------|".to_string(),
+            );
 
             for record in recent_publishes {
-                let status = if record.success { "✅ Success" } else { "❌ Failed" };
+                let status = if record.success {
+                    "✅ Success"
+                } else {
+                    "❌ Failed"
+                };
                 let timestamp = record.timestamp.format("%Y-%m-%d").to_string();
                 let duration = format!("{:.2}s", record.duration as f64 / 1000.0);
 
                 lines.push(format!(
                     "| {} | {} | {} | {} | {} | {} |",
-                    timestamp, record.registry, record.package_name, record.version, status, duration
+                    timestamp,
+                    record.registry,
+                    record.package_name,
+                    record.version,
+                    status,
+                    duration
                 ));
             }
             lines.push(String::new());

@@ -97,7 +97,12 @@ mod tests {
         writeln!(file, "[project]\nname = \"test\"").unwrap();
 
         let plugin = PyPiPlugin::new();
-        assert!(plugin.detect(temp_dir.path().to_str().unwrap()).await.unwrap());
+        assert!(
+            plugin
+                .detect(temp_dir.path().to_str().unwrap())
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -107,7 +112,12 @@ mod tests {
         std::fs::File::create(&setup_py).unwrap();
 
         let plugin = PyPiPlugin::new();
-        assert!(plugin.detect(temp_dir.path().to_str().unwrap()).await.unwrap());
+        assert!(
+            plugin
+                .detect(temp_dir.path().to_str().unwrap())
+                .await
+                .unwrap()
+        );
     }
 
     #[test]

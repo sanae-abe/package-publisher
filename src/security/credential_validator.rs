@@ -167,7 +167,10 @@ impl CredentialValidator {
 
         // Check if the remaining 16 chars are uppercase alphanumeric
         let suffix = &key[4..];
-        if !suffix.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()) {
+        if !suffix
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+        {
             return ValidationResult {
                 is_likely_real: false,
                 confidence: 0.95,

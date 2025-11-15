@@ -226,7 +226,10 @@ async fn run() -> Result<i32> {
             let path = project_path.unwrap_or_else(|| PathBuf::from("."));
             stats_command(path, registry, package, success_only, failures_only, days).await
         }
-        Commands::Init { project_path, force } => {
+        Commands::Init {
+            project_path,
+            force,
+        } => {
             let path = project_path.unwrap_or_else(|| PathBuf::from("."));
             init_command(path, force).await
         }
@@ -339,7 +342,10 @@ async fn publish_batch_command(
 
             for (_, report) in &result.results {
                 if let Err(e) = analytics.record_publish(report).await {
-                    eprintln!("⚠️  Failed to record analytics for {}: {}", report.registry, e);
+                    eprintln!(
+                        "⚠️  Failed to record analytics for {}: {}",
+                        report.registry, e
+                    );
                 }
             }
 
@@ -394,7 +400,8 @@ async fn check_command(project_path: PathBuf, registry_filter: Option<String>) -
         println!("\n📦 {}:", registry_name);
 
         // Load and validate
-        let plugin = loader.load_plugin(plugin_info.registry_type, project_path.to_str().unwrap())?;
+        let plugin =
+            loader.load_plugin(plugin_info.registry_type, project_path.to_str().unwrap())?;
 
         match plugin.validate().await {
             Ok(result) => {

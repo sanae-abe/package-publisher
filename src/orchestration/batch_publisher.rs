@@ -95,13 +95,27 @@ impl BatchPublisher {
             return Err(anyhow::anyhow!("At least one registry must be specified"));
         }
 
-        println!("\n📦 Batch Publishing to {} registries: {}", registries.len(), registries.join(", "));
-        println!("Mode: {}", if options.sequential {
-            "Sequential".to_string()
-        } else {
-            format!("Parallel (max {} concurrent)", options.max_concurrency)
-        });
-        println!("Continue on error: {}\n", if options.continue_on_error { "Yes" } else { "No" });
+        println!(
+            "\n📦 Batch Publishing to {} registries: {}",
+            registries.len(),
+            registries.join(", ")
+        );
+        println!(
+            "Mode: {}",
+            if options.sequential {
+                "Sequential".to_string()
+            } else {
+                format!("Parallel (max {} concurrent)", options.max_concurrency)
+            }
+        );
+        println!(
+            "Continue on error: {}\n",
+            if options.continue_on_error {
+                "Yes"
+            } else {
+                "No"
+            }
+        );
 
         // Initialize result
         let mut result = BatchPublishResult {
@@ -114,10 +128,12 @@ impl BatchPublisher {
 
         if options.sequential {
             // Sequential publishing
-            self.publish_sequentially(registries, &options, &mut result).await?;
+            self.publish_sequentially(registries, &options, &mut result)
+                .await?;
         } else {
             // Parallel publishing with concurrency control
-            self.publish_in_parallel(registries, &options, &mut result).await?;
+            self.publish_in_parallel(registries, &options, &mut result)
+                .await?;
         }
 
         // Set overall success status
@@ -168,7 +184,8 @@ impl BatchPublisher {
 
             let task = tokio::spawn(async move {
                 let _permit = semaphore.acquire().await.unwrap();
-                Self::publish_single_registry(&project_path, &registry_for_task, &publish_options).await
+                Self::publish_single_registry(&project_path, &registry_for_task, &publish_options)
+                    .await
             });
 
             tasks.push((registry, task));
@@ -181,10 +198,15 @@ impl BatchPublisher {
                     match publish_result {
                         Ok(report) => {
                             if report.success {
-                                println!("✅ {}: Published successfully in {}ms", registry, report.duration);
+                                println!(
+                                    "✅ {}: Published successfully in {}ms",
+                                    registry, report.duration
+                                );
                                 result.succeeded.push(registry.clone());
                             } else {
-                                let error = report.errors.first()
+                                let error = report
+                                    .errors
+                                    .first()
                                     .cloned()
                                     .unwrap_or_else(|| "Unknown error".to_string());
                                 println!("❌ {}: Failed - {}", registry, error);
@@ -255,13 +277,20 @@ impl BatchPublisher {
     ) {
         println!("\n🚀 Publishing to {}...", registry);
 
-        match Self::publish_single_registry(&self.project_path, registry, &options.publish_options).await {
+        match Self::publish_single_registry(&self.project_path, registry, &options.publish_options)
+            .await
+        {
             Ok(report) => {
                 if report.success {
-                    println!("✅ {}: Published successfully in {}ms", registry, report.duration);
+                    println!(
+                        "✅ {}: Published successfully in {}ms",
+                        registry, report.duration
+                    );
                     result.succeeded.push(registry.to_string());
                 } else {
-                    let error = report.errors.first()
+                    let error = report
+                        .errors
+                        .first()
                         .cloned()
                         .unwrap_or_else(|| "Unknown error".to_string());
                     println!("❌ {}: Failed - {}", registry, error);
@@ -272,7 +301,9 @@ impl BatchPublisher {
             Err(e) => {
                 let error_msg = e.to_string();
                 println!("❌ {}: Failed - {}", registry, error_msg);
-                result.failed.insert(registry.to_string(), error_msg.clone());
+                result
+                    .failed
+                    .insert(registry.to_string(), error_msg.clone());
 
                 let report = PublishReport {
                     success: false,
@@ -304,7 +335,9 @@ impl BatchPublisher {
         batch_options.non_interactive = true;
         batch_options.registry = Some(registry.to_string());
 
-        publisher.publish(batch_options).await
+        publisher
+            .publish(batch_options)
+            .await
             .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
@@ -339,7 +372,14 @@ impl BatchPublisher {
         }
 
         println!("\n{}", "=".repeat(60));
-        println!("Overall Status: {}", if result.success { "✅ SUCCESS" } else { "❌ FAILED" });
+        println!(
+            "Overall Status: {}",
+            if result.success {
+                "✅ SUCCESS"
+            } else {
+                "❌ FAILED"
+            }
+        );
         println!("{}\n", "=".repeat(60));
     }
 }

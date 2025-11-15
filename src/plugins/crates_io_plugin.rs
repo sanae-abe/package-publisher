@@ -10,8 +10,8 @@
 //! - Yank support for rollback
 
 use crate::core::traits::{
-    DryRunResult, PublishOptions, PublishResult, RegistryPlugin, ValidationError,
-    ValidationResult, ValidationWarning, VerificationResult,
+    DryRunResult, PublishOptions, PublishResult, RegistryPlugin, ValidationError, ValidationResult,
+    ValidationWarning, VerificationResult,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -277,7 +277,9 @@ impl RegistryPlugin for CratesIoPlugin {
         // Note: cargo test can be time-consuming
         warnings.push(ValidationWarning {
             field: "cargo.test".to_string(),
-            message: "テストは時間がかかるためスキップしました。手動で `cargo test` を実行してください。".to_string(),
+            message:
+                "テストは時間がかかるためスキップしました。手動で `cargo test` を実行してください。"
+                    .to_string(),
             severity: "warning".to_string(),
         });
 
@@ -411,7 +413,8 @@ impl RegistryPlugin for CratesIoPlugin {
                 let version_exists = info.versions.iter().any(|v| v.num == expected_version);
 
                 if !version_exists {
-                    let available: Vec<String> = info.versions.iter().map(|v| v.num.clone()).collect();
+                    let available: Vec<String> =
+                        info.versions.iter().map(|v| v.num.clone()).collect();
                     return Ok(VerificationResult {
                         verified: false,
                         version: Some(expected_version.clone()),
@@ -426,7 +429,8 @@ impl RegistryPlugin for CratesIoPlugin {
                 }
 
                 let newest_version = info.crate_info.newest_version.clone();
-                let all_versions: Vec<String> = info.versions.iter().map(|v| v.num.clone()).collect();
+                let all_versions: Vec<String> =
+                    info.versions.iter().map(|v| v.num.clone()).collect();
 
                 let mut metadata = HashMap::new();
                 metadata.insert(
@@ -483,7 +487,10 @@ mod tests {
         writeln!(file, "[package]\nname = \"test\"").unwrap();
 
         let plugin = CratesIoPlugin::new(temp_dir.path().to_path_buf());
-        let result = plugin.detect(temp_dir.path().to_str().unwrap()).await.unwrap();
+        let result = plugin
+            .detect(temp_dir.path().to_str().unwrap())
+            .await
+            .unwrap();
         assert!(result);
     }
 
@@ -491,7 +498,10 @@ mod tests {
     async fn test_detect_without_cargo_toml() {
         let temp_dir = TempDir::new().unwrap();
         let plugin = CratesIoPlugin::new(temp_dir.path().to_path_buf());
-        let result = plugin.detect(temp_dir.path().to_str().unwrap()).await.unwrap();
+        let result = plugin
+            .detect(temp_dir.path().to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!result);
     }
 

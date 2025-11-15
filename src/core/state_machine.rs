@@ -318,14 +318,8 @@ mod tests {
         let restored = restored_state_machine.restore().await.unwrap();
 
         assert!(restored);
-        assert_eq!(
-            restored_state_machine.get_state(),
-            PublishState::Validating
-        );
-        assert_eq!(
-            restored_state_machine.registry,
-            Some("npm".to_string())
-        );
+        assert_eq!(restored_state_machine.get_state(), PublishState::Validating);
+        assert_eq!(restored_state_machine.registry, Some("npm".to_string()));
     }
 
     #[tokio::test]

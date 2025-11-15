@@ -242,11 +242,15 @@ impl PluginLoader {
         match registry_type {
             RegistryType::Npm => {
                 use crate::plugins::npm_plugin::NpmPlugin;
-                Ok(Arc::new(NpmPlugin::new(std::path::PathBuf::from(project_path))))
+                Ok(Arc::new(NpmPlugin::new(std::path::PathBuf::from(
+                    project_path,
+                ))))
             }
             RegistryType::Crates => {
                 use crate::plugins::crates_io_plugin::CratesIoPlugin;
-                Ok(Arc::new(CratesIoPlugin::new(std::path::PathBuf::from(project_path))))
+                Ok(Arc::new(CratesIoPlugin::new(std::path::PathBuf::from(
+                    project_path,
+                ))))
             }
             RegistryType::PyPI => {
                 use crate::plugins::pypi_plugin::PyPiPlugin;
@@ -254,7 +258,9 @@ impl PluginLoader {
             }
             RegistryType::Homebrew => {
                 use crate::plugins::homebrew_plugin::HomebrewPlugin;
-                Ok(Arc::new(HomebrewPlugin::new(std::path::PathBuf::from(project_path))))
+                Ok(Arc::new(HomebrewPlugin::new(std::path::PathBuf::from(
+                    project_path,
+                ))))
             }
         }
     }
@@ -378,8 +384,10 @@ mod tests {
 
         assert_eq!(plugins.len(), 2);
         assert!(plugins.iter().any(|p| p.registry_type == RegistryType::Npm));
-        assert!(plugins
-            .iter()
-            .any(|p| p.registry_type == RegistryType::Crates));
+        assert!(
+            plugins
+                .iter()
+                .any(|p| p.registry_type == RegistryType::Crates)
+        );
     }
 }

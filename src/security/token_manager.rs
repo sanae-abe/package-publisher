@@ -155,7 +155,9 @@ impl SecureTokenManager {
                 let escaped = Self::escape_regex(token_str);
                 if let Ok(regex) = Regex::new(&escaped) {
                     let masked_token = self.mask_token(token_str);
-                    masked = regex.replace_all(&masked, masked_token.as_str()).to_string();
+                    masked = regex
+                        .replace_all(&masked, masked_token.as_str())
+                        .to_string();
                 }
             }
         }
@@ -269,10 +271,7 @@ mod tests {
     fn test_mask_token_with_long_token() {
         let manager = SecureTokenManager::new();
         assert_eq!(manager.mask_token("abcdef123456"), "abc...456");
-        assert_eq!(
-            manager.mask_token("very-long-token-string"),
-            "ver...ing"
-        );
+        assert_eq!(manager.mask_token("very-long-token-string"), "ver...ing");
     }
 
     #[test]
@@ -327,9 +326,6 @@ mod tests {
     #[test]
     fn test_escape_regex_special_chars() {
         let escaped = SecureTokenManager::escape_regex("test.token+with*special$chars");
-        assert_eq!(
-            escaped,
-            "test\\.token\\+with\\*special\\$chars"
-        );
+        assert_eq!(escaped, "test\\.token\\+with\\*special\\$chars");
     }
 }

@@ -340,8 +340,18 @@ tempfile = "3.0"
         let result = checker.check_cargo_dependencies(content).unwrap();
         assert_eq!(result.total_count, 3);
         assert_eq!(result.dev_count, 1);
-        assert!(result.dependencies.iter().any(|d| d.name == "serde" && !d.dev));
-        assert!(result.dependencies.iter().any(|d| d.name == "tempfile" && d.dev));
+        assert!(
+            result
+                .dependencies
+                .iter()
+                .any(|d| d.name == "serde" && !d.dev)
+        );
+        assert!(
+            result
+                .dependencies
+                .iter()
+                .any(|d| d.name == "tempfile" && d.dev)
+        );
     }
 
     #[test]
@@ -369,7 +379,10 @@ serde = "*"
     fn test_extract_cargo_version_table() {
         let checker = DependencyChecker::new();
         let mut table = toml::map::Map::new();
-        table.insert("version".to_string(), toml::Value::String("1.0.0".to_string()));
+        table.insert(
+            "version".to_string(),
+            toml::Value::String("1.0.0".to_string()),
+        );
         let value = toml::Value::Table(table);
         let version = checker.extract_cargo_version(&value);
         assert_eq!(version, "1.0.0");
@@ -378,13 +391,11 @@ serde = "*"
     #[test]
     fn test_check_vulnerabilities_clean() {
         let checker = DependencyChecker::new();
-        let dependencies = vec![
-            Dependency {
-                name: "express".to_string(),
-                version_requirement: "^4.17.1".to_string(),
-                dev: false,
-            },
-        ];
+        let dependencies = vec![Dependency {
+            name: "express".to_string(),
+            version_requirement: "^4.17.1".to_string(),
+            dev: false,
+        }];
 
         let issues = checker.check_vulnerabilities(&dependencies);
         assert_eq!(issues.len(), 0);
@@ -393,13 +404,11 @@ serde = "*"
     #[test]
     fn test_check_vulnerabilities_known_issue() {
         let checker = DependencyChecker::new();
-        let dependencies = vec![
-            Dependency {
-                name: "event-stream".to_string(),
-                version_requirement: "3.3.4".to_string(),
-                dev: false,
-            },
-        ];
+        let dependencies = vec![Dependency {
+            name: "event-stream".to_string(),
+            version_requirement: "3.3.4".to_string(),
+            dev: false,
+        }];
 
         let issues = checker.check_vulnerabilities(&dependencies);
         assert_eq!(issues.len(), 1);
@@ -414,11 +423,7 @@ serde = "*"
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("package.json");
         let mut file = std::fs::File::create(&file_path).unwrap();
-        writeln!(
-            file,
-            r#"{{"dependencies": {{"express": "^4.17.1"}}}}"#
-        )
-        .unwrap();
+        writeln!(file, r#"{{"dependencies": {{"express": "^4.17.1"}}}}"#).unwrap();
 
         let checker = DependencyChecker::new();
         let result = checker
