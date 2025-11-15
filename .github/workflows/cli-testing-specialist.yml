@@ -72,9 +72,10 @@ jobs:
       - name: Create wrapper script for Rust binary
         run: |
           # Create executable wrapper script for cli-testing-specialist
-          cat > package-publisher-wrapper.sh << 'EOF'
+          # Use absolute path to avoid symlink resolution issues
+          cat > package-publisher-wrapper.sh << EOF
           #!/bin/bash
-          exec "$(dirname "$0")/target/release/package-publisher" "$@"
+          exec "${GITHUB_WORKSPACE}/target/release/package-publisher" "\$@"
           EOF
           chmod +x package-publisher-wrapper.sh
 
@@ -245,9 +246,10 @@ jobs:
 
       - name: Create wrapper script for Rust binary
         run: |
-          cat > package-publisher-wrapper.sh << 'EOF'
+          # Use absolute path to avoid symlink resolution issues
+          cat > package-publisher-wrapper.sh << EOF
           #!/bin/bash
-          exec "$(dirname "$0")/target/release/package-publisher" "$@"
+          exec "${GITHUB_WORKSPACE}/target/release/package-publisher" "\$@"
           EOF
           chmod +x package-publisher-wrapper.sh
 
