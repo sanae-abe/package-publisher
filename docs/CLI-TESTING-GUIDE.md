@@ -183,7 +183,7 @@ cli-testing-specialist run \
 
 **特徴**:
 - ✅ Ubuntu/macOS マトリックステスト
-- ✅ Node.js 18 & 20 マトリックステスト
+- ✅ Rust stable マトリックステスト
 - ✅ セキュリティ専用ジョブ
 - ✅ テスト失敗時にCI fail
 - ✅ レポートアーティファクト保存（30日間）
