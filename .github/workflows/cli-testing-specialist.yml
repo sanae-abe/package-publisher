@@ -11,7 +11,7 @@ on:
     - cron: '0 0 * * *'
 
 env:
-  NODE_ENV: test
+  RUST_BACKTRACE: 1
 
 jobs:
   cli-automated-testing:
@@ -22,53 +22,42 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        node-version: [18, 20]
-        include:
-          - os: ubuntu-latest
-            node-version: 18
-            binary: dist/cli.js
-          - os: ubuntu-latest
-            node-version: 20
-            binary: dist/cli.js
-          - os: macos-latest
-            node-version: 18
-            binary: dist/cli.js
-          - os: macos-latest
-            node-version: 20
-            binary: dist/cli.js
+        rust-version: [stable]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Setup Rust ${{ matrix.rust-version }}
+        uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          toolchain: ${{ matrix.rust-version }}
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build package-publisher
-        run: npm run build
+        run: cargo build --release
 
       - name: Verify package-publisher binary
         run: |
-          node ${{ matrix.binary }} --version
-          node ${{ matrix.binary }} --help
+          ./target/release/package-publisher --version
+          ./target/release/package-publisher --help
 
       # ========== cli-testing-specialist installation ==========
-
-      - name: Install Rust (for cli-testing-specialist)
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cli-testing-specialist
         id: cache-cli-testing-specialist
         uses: actions/cache@v3
         with:
           path: ~/.cargo/bin/cli-testing-specialist
-          key: ${{ runner.os }}-cli-testing-specialist-v1.0.2-node${{ matrix.node-version }}
+          key: ${{ runner.os }}-cli-testing-specialist-v1.0.2
 
       - name: Install cli-testing-specialist
         if: steps.cache-cli-testing-specialist.outputs.cache-hit != 'true'
@@ -80,12 +69,12 @@ jobs:
 
       # ========== CLI Analysis Phase ==========
 
-      - name: Create wrapper script for Node.js binary
+      - name: Create wrapper script for Rust binary
         run: |
           # Create executable wrapper script for cli-testing-specialist
           cat > package-publisher-wrapper.sh << 'EOF'
           #!/bin/bash
-          node "$(dirname "$0")/dist/cli.js" "$@"
+          exec "$(dirname "$0")/target/release/package-publisher" "$@"
           EOF
           chmod +x package-publisher-wrapper.sh
 
@@ -105,7 +94,7 @@ jobs:
       - name: Upload analysis results
         uses: actions/upload-artifact@v4
         with:
-          name: cli-analysis-${{ matrix.os }}-node${{ matrix.node-version }}
+          name: cli-analysis-${{ matrix.os }}-rust${{ matrix.rust-version }}
           path: package-publisher-analysis.json
           retention-days: 30
 
@@ -127,7 +116,7 @@ jobs:
       - name: Upload generated tests
         uses: actions/upload-artifact@v4
         with:
-          name: cli-tests-${{ matrix.os }}-node${{ matrix.node-version }}
+          name: cli-tests-${{ matrix.os }}-rust${{ matrix.rust-version }}
           path: cli-tests/
           retention-days: 30
 
@@ -187,7 +176,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cli-test-reports-${{ matrix.os }}-node${{ matrix.node-version }}
+          name: cli-test-reports-${{ matrix.os }}-rust${{ matrix.rust-version }}
           path: cli-reports/
           retention-days: 30
 
@@ -195,7 +184,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: junit-report-${{ matrix.os }}-node${{ matrix.node-version }}
+          name: junit-report-${{ matrix.os }}-rust${{ matrix.rust-version }}
           path: cli-reports/*-junit.xml
           retention-days: 30
 
@@ -227,20 +216,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build package-publisher
-        run: npm run build
-
-      - name: Install Rust (for cli-testing-specialist)
-        uses: dtolnay/rust-toolchain@stable
+        run: cargo build --release
 
       - name: Cache cli-testing-specialist
         id: cache-cli-testing-specialist-security
@@ -254,11 +243,11 @@ jobs:
         run: |
           cargo install --git https://github.com/sanae-abe/cli-testing-specialist --rev 3411fd4f8b2cb4937cb1c62082e4f62cbf783274 cli-testing-specialist
 
-      - name: Create wrapper script for Node.js binary
+      - name: Create wrapper script for Rust binary
         run: |
           cat > package-publisher-wrapper.sh << 'EOF'
           #!/bin/bash
-          node "$(dirname "$0")/dist/cli.js" "$@"
+          exec "$(dirname "$0")/target/release/package-publisher" "$@"
           EOF
           chmod +x package-publisher-wrapper.sh
 
