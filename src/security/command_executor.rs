@@ -152,9 +152,21 @@ impl SafeCommandExecutor {
             return Err(CommandError::CommandNotAllowed(command.to_string()));
         }
 
+        // Windows-specific: npm, yarn, etc. are .cmd files, not .exe
+        // On Windows, try .cmd extension first for common Node.js commands
+        #[cfg(target_os = "windows")]
+        let command_name = if matches!(command, "npm" | "yarn" | "pnpm") {
+            format!("{}.cmd", command)
+        } else {
+            command.to_string()
+        };
+
+        #[cfg(not(target_os = "windows"))]
+        let command_name = command.to_string();
+
         // Execute using std::process::Command (type-safe, prevents injection)
         // Arguments are passed as Vec, never interpolated into shell strings
-        let output = Command::new(command)
+        let output = Command::new(&command_name)
             .args(args)
             .current_dir(&self.working_dir)
             .output()
