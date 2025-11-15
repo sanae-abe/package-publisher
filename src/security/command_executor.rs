@@ -10,11 +10,11 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,no_run
 //! use package_publisher::SafeCommandExecutor;
 //! use std::time::Duration;
 //!
-//! let mut executor = SafeCommandExecutor::new("/tmp").unwrap();
+//! let mut executor = SafeCommandExecutor::new(std::env::temp_dir()).unwrap();
 //! executor.set_timeout(Duration::from_secs(30));
 //!
 //! let output = executor.execute("npm", &["--version"]).unwrap();
@@ -168,23 +168,31 @@ impl SafeCommandExecutor {
 mod tests {
     use super::*;
 
+    // Helper function to get cross-platform temp directory
+    fn get_test_dir() -> String {
+        std::env::temp_dir()
+            .to_str()
+            .expect("Failed to get temp directory")
+            .to_string()
+    }
+
     #[test]
     fn test_allowed_command_npm() {
-        let executor = SafeCommandExecutor::new("/tmp").unwrap();
+        let executor = SafeCommandExecutor::new(&get_test_dir()).unwrap();
         let result = executor.execute("npm", &["--version"]);
         assert!(result.is_ok(), "npm should be allowed and executable");
     }
 
     #[test]
     fn test_allowed_command_cargo() {
-        let executor = SafeCommandExecutor::new("/tmp").unwrap();
+        let executor = SafeCommandExecutor::new(&get_test_dir()).unwrap();
         let result = executor.execute("cargo", &["--version"]);
         assert!(result.is_ok(), "cargo should be allowed and executable");
     }
 
     #[test]
     fn test_rejected_command_rm() {
-        let executor = SafeCommandExecutor::new("/tmp").unwrap();
+        let executor = SafeCommandExecutor::new(&get_test_dir()).unwrap();
         let result = executor.execute("rm", &["-rf", "/"]);
         assert!(
             matches!(result, Err(CommandError::CommandNotAllowed(_))),
@@ -194,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_rejected_command_eval() {
-        let executor = SafeCommandExecutor::new("/tmp").unwrap();
+        let executor = SafeCommandExecutor::new(&get_test_dir()).unwrap();
         let result = executor.execute("eval", &["malicious code"]);
         assert!(
             matches!(result, Err(CommandError::CommandNotAllowed(_))),
@@ -204,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_injection_attempt_via_arguments() {
-        let executor = SafeCommandExecutor::new("/tmp").unwrap();
+        let executor = SafeCommandExecutor::new(&get_test_dir()).unwrap();
         // Attempt command injection via semicolon
         let result = executor.execute("npm", &["install; rm -rf /"]);
         // Should execute safely (npm will fail but no injection)
@@ -225,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_command_with_timeout() {
-        let mut executor = SafeCommandExecutor::new("/tmp").unwrap();
+        let mut executor = SafeCommandExecutor::new(&get_test_dir()).unwrap();
         executor.set_timeout(Duration::from_millis(100));
 
         // This command should timeout (sleep longer than timeout)
@@ -239,7 +247,7 @@ mod tests {
 
     #[test]
     fn test_output_capture() {
-        let executor = SafeCommandExecutor::new("/tmp").unwrap();
+        let executor = SafeCommandExecutor::new(&get_test_dir()).unwrap();
         let result = executor.execute("npm", &["--version"]);
 
         match result {
@@ -257,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_argument_sanitization_quotes() {
-        let executor = SafeCommandExecutor::new("/tmp").unwrap();
+        let executor = SafeCommandExecutor::new(&get_test_dir()).unwrap();
         // Arguments with quotes should be safely handled
         let result = executor.execute("npm", &["info", "\"malicious-package\""]);
         // Should not cause injection, npm will handle quotes safely
