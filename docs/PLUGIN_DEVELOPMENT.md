@@ -1,6 +1,19 @@
 # Plugin Development Guide
 
-package-publisherのカスタムレジストリプラグインを開発するためのガイドです。
+package-publisherのカスタムレジストリプラグインを開発するためのガイドです（Rust実装）。
+
+> **⚠️ 重要な変更**: このドキュメントは TypeScript 実装時代のものです。Rust 実装ではプラグインシステムが大幅に変更されています。
+>
+> **現在のステータス**:
+> - ✅ Rust実装: 4つのビルトインプラグイン (npm, crates.io, PyPI, Homebrew) が完全に実装済み
+> - ⏳ 外部プラグインシステム: 現在未実装（Phase 3で実装予定）
+>
+> **Rustプラグイン開発を希望する場合**:
+> - `src/plugins/` ディレクトリの既存実装を参照してください
+> - `RegistryPlugin` trait は `src/core/traits.rs` で定義されています
+> - サンプル実装: `src/plugins/npm_plugin.rs`
+>
+> 以下のドキュメントは **TypeScript版の参考資料** として保持しています。
 
 ## 📋 目次
 
@@ -22,10 +35,16 @@ package-publisherのカスタムレジストリプラグインを開発するた
 
 ## 概要
 
-package-publisherは、2種類のプラグインシステムを提供しています：
+**注意**: このセクションは TypeScript 実装の説明です。
+
+package-publisherは、2種類のプラグインシステムを提供していました：
 
 1. **RegistryPlugin（ビルトインプラグイン）**: package-publisher本体に統合されるプラグイン
 2. **PublishPlugin（外部プラグイン）**: npm パッケージまたはローカルファイルとして動的にロードされるプラグイン
+
+**Rust実装での現状**:
+- ✅ RegistryPlugin: 完全実装（4プラグイン）
+- ⏳ PublishPlugin: Phase 3 で実装予定
 
 ## プラグインの種類
 

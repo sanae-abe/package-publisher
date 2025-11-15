@@ -1,6 +1,6 @@
 # CI/CD Integration Guide
 
-このドキュメントでは、`package-publisher`を主要なCI/CDプラットフォームと統合する方法を説明します。
+このドキュメントでは、`package-publisher`（Rust実装）を主要なCI/CDプラットフォームと統合する方法を説明します。
 
 ## 📋 目次
 
@@ -34,20 +34,30 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
 
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-      - run: npm install -g package-publisher
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build package-publisher
+        run: cargo build --release
+
+      - name: Run tests
+        run: cargo test --lib
 
       - name: Publish to npm
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          package-publisher publish \
+          ./target/release/package-publisher publish \
             --registry npm \
             --non-interactive \
             --tag latest \
@@ -73,13 +83,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-      - uses: actions/setup-python@v5
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - run: npm ci
-      - run: npm test
-      - run: npm install -g package-publisher
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build package-publisher
+        run: cargo build --release
+
+      - name: Run tests
+        run: cargo test --lib
 
       - name: Publish to multiple registries
         env:
@@ -87,11 +108,10 @@ jobs:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          package-publisher publish \
+          ./target/release/package-publisher publish \
             --registries npm,pypi,crates.io \
             --non-interactive \
-            --continue-on-error \
-            --max-concurrency 3
+            --continue-on-error
 ```
 
 ### Secrets設定

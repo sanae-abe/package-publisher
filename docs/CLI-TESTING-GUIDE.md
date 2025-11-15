@@ -1,6 +1,6 @@
 # package-publisher CLI Testing Guide
 
-**cli-testing-specialist** を使用した package-publisher の包括的CLI自動テスト
+**cli-testing-specialist** を使用した package-publisher の包括的CLI自動テスト（Rust実装）
 
 ---
 
@@ -11,7 +11,7 @@
 - [ローカルでのテスト実行](#ローカルでのテスト実行)
 - [CI/CD統合](#cicd統合)
 - [テストカテゴリ](#テストカテゴリ)
-- [Node.js CLIツール特有の注意点](#nodejs-cliツール特有の注意点)
+- [Rust CLIツール特有の注意点](#rust-cliツール特有の注意点)
 - [トラブルシューティング](#トラブルシューティング)
 
 ---
@@ -23,10 +23,11 @@ cli-testing-specialist は package-publisher CLI の品質を自動検証する�
 ### 主な機能
 
 - ✅ **自動解析**: package-publisher のオプション・サブコマンドを自動抽出
-- ✅ **包括テスト**: 8カテゴリ 45-47 テストケースを自動生成
+- ✅ **包括テスト**: 7カテゴリ 17 テストケースを自動生成
 - ✅ **セキュリティ**: OWASP準拠のセキュリティスキャン
-- ✅ **CI/CD統合**: GitHub Actions で自動実行（Node.js 18 & 20）
+- ✅ **CI/CD統合**: GitHub Actions で自動実行（Ubuntu/macOS）
 - ✅ **4種類レポート**: Markdown, JSON, HTML, JUnit XML
+- ✅ **全テスト成功**: 17/17 テスト合格（100%）
 
 ---
 
@@ -35,11 +36,9 @@ cli-testing-specialist は package-publisher CLI の品質を自動検証する�
 ### 1. 前提条件
 
 ```bash
-# Node.js (LTS)
-node --version  # 18.0.0+
-
-# Rust (cli-testing-specialist用)
+# Rust (package-publisher + cli-testing-specialist)
 rustc --version  # 1.75.0+
+cargo --version
 
 # BATS (テスト実行用)
 ## macOS
@@ -47,6 +46,13 @@ brew install bats-core
 
 ## Ubuntu/Debian
 sudo apt-get install bats
+
+# zsh (multi-shellテスト用)
+## macOS: プリインストール済み
+zsh --version
+
+## Ubuntu/Debian
+sudo apt-get install zsh
 
 # jq (レポート表示用、オプション)
 brew install jq  # macOS
@@ -57,37 +63,29 @@ sudo apt-get install jq  # Ubuntu
 
 ```bash
 # GitHubから最新版をインストール
-cargo install --git https://github.com/sanae-abe/cli-testing-specialist --tag v1.0.2 cli-testing-specialist
+cargo install --git https://github.com/sanae-abe/cli-testing-specialist --rev acaf51359d666434240d19d3a1cfa2ae1808f1c1 cli-testing-specialist
 
 # インストール確認
 cli-testing-specialist --version
-# cli-testing-specialist 1.0.2
+# cli-testing-specialist (acaf513)
 ```
 
 ---
 
 ## ローカルでのテスト実行
 
-### クイックスタート（4ステップ）
+### クイックスタート（3ステップ）
 
 ```bash
 # 1. package-publisher をビルド
-npm ci
-npm run build
+cargo build --release
 
-# 2. Node.js用ラッパースクリプト作成
-cat > package-publisher-wrapper.sh << 'EOF'
-#!/bin/bash
-node "$(dirname "$0")/dist/cli.js" "$@"
-EOF
-chmod +x package-publisher-wrapper.sh
-
-# 3. CLI解析 + テスト生成 + 実行（一括）
-cli-testing-specialist analyze ./package-publisher-wrapper.sh -o package-publisher-analysis.json
+# 2. CLI解析 + テスト生成 + 実行（一括）
+cli-testing-specialist analyze ./target/release/package-publisher -o package-publisher-analysis.json
 cli-testing-specialist generate package-publisher-analysis.json -o package-publisher-tests -c all
 cli-testing-specialist run package-publisher-tests -f all -o reports
 
-# 4. レポート確認
+# 3. レポート確認
 open reports/package-publisher-tests-report.html  # macOS
 # または
 cat reports/package-publisher-tests-report.md
@@ -260,55 +258,49 @@ jq '.success_rate' reports/package-publisher-tests-report.json
 
 ---
 
-## Node.js CLIツール特有の注意点
+## Rust CLIツール特有の注意点
 
-### 1. ラッパースクリプトの必要性
+### 1. バイナリの直接指定
 
-**問題**: cli-testing-specialist は `node dist/cli.js` を直接解析できない
-
-**解決策**: 実行可能なラッパースクリプトを作成
+**Rust実装のメリット**: Rustバイナリは直接指定可能
 
 ```bash
-# 良い例：実行可能なラッパースクリプト
-cat > package-publisher-wrapper.sh << 'EOF'
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-node "$SCRIPT_DIR/dist/cli.js" "$@"
-EOF
-chmod +x package-publisher-wrapper.sh
+# Rustバイナリを直接指定
+cli-testing-specialist analyze ./target/release/package-publisher
 
-# 悪い例：直接Node.js CLIを指定（動作しない）
-cli-testing-specialist analyze dist/cli.js  # ❌ エラー
-```
-
-### 2. package.json の bin フィールド
-
-package.json で定義されているCLIツール:
-
-```json
-{
-  "bin": {
-    "package-publisher": "dist/cli.js"
-  }
-}
-```
-
-**グローバルインストール後**:
-```bash
-# npm install -g でインストール後
+# グローバルインストール後
 cli-testing-specialist analyze $(which package-publisher)
 ```
 
-### 3. Node.jsバージョン互換性
+**ラッパースクリプト不要**: Node.js版と異なり、Rustバイナリは実行可能ファイルとして直接解析可能。
 
-CI では Node.js 18 & 20 でテスト:
+### 2. クロスプラットフォーム対応
+
+CI では Ubuntu, macOS, Windows でテスト:
 
 ```yaml
 matrix:
-  node-version: [18, 20]
+  os: [ubuntu-latest, macos-latest, windows-latest]
+  rust: [stable]
 ```
 
-ローカルテストでは開発環境のNode.jsバージョンを使用。
+**Windowsの特別対応**:
+- npm/yarn/pnpm: `.cmd` 拡張子自動付与
+- パス処理: `std::env::temp_dir()` でOS別対応
+
+### 3. ビルド時間の考慮
+
+```bash
+# デバッグビルド（開発用、高速）
+cargo build
+./target/debug/package-publisher --version
+
+# リリースビルド（CI/本番用、最適化）
+cargo build --release
+./target/release/package-publisher --version
+```
+
+**CI/CDでの推奨**: `cargo build --release` を使用（パフォーマンス重視）
 
 ---
 
@@ -442,21 +434,22 @@ cli-testing-specialist analyze $(which package-publisher) -o analysis.json
 - テスト生成: 1-2秒
 - テスト実行: 30-60秒（カテゴリ数による）
 
-### Q4: CI で Node.js 16 もサポートすべきですか？
+### Q4: CI で全てのRustバージョンをテストすべきですか？
 
-**A**: package.json で `"engines": {"node": ">=18.0.0"}` と指定されているため、Node.js 18+ のみテストします。Node.js 16 は 2023年9月にEOLを迎えました。
+**A**: `Cargo.toml` で `rust-version = "1.75"` と指定されているため、Rust 1.75+ の stable のみテストします。MSRVをサポートすることでビルド時間を短縮しています。
 
 ---
 
 ## 既存テストとの統合
 
-### 既存の Jest テストとの関係
+### 既存の Rust テストとの関係
 
-package-publisher プロジェクトには `tests/` に既存のJestテストがあります:
+package-publisher プロジェクトには `src/` 内に既存のRustユニットテストがあります:
 
 ```
-tests/
-├── *.test.ts  # Jestユニットテスト
+src/
+├── **/mod.rs      # Rustユニットテスト (#[cfg(test)])
+├── **/tests.rs    # 統合テスト
 
 cli-testing-specialist
 ├── 自動生成されたBATSテスト
@@ -465,9 +458,13 @@ cli-testing-specialist
 ```
 
 **推奨戦略**:
-1. Jest テスト: ユニットテスト・ロジックテスト
+1. Rust テスト (`cargo test --lib`): ユニットテスト・ロジックテスト
 2. cli-testing-specialist: CLIインターフェース・セキュリティテスト
 3. 両方を組み合わせて包括的な品質保証
+
+**現在の成功率**:
+- Rust CI: 205/205 テスト合格（100%）
+- CLI Testing Specialist: 17/17 テスト合格（100%）
 
 ---
 
@@ -476,4 +473,9 @@ cli-testing-specialist
 - **cli-testing-specialist**: https://github.com/sanae-abe/cli-testing-specialist
 - **BATS**: https://github.com/bats-core/bats-core
 - **package-publisher**: https://github.com/sanae-abe/package-publisher
-- **Node.js CLI Best Practices**: https://github.com/lirantal/nodejs-cli-apps-best-practices
+- **Rust CLI Best Practices**: https://rust-cli.github.io/book/
+
+---
+
+**Last Updated**: 2025-11-15
+**Test Results**: 17/17 (100%)

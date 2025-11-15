@@ -1,6 +1,6 @@
 # Claude Code Agent Integration Guide
 
-package-publisherをClaude Codeエージェントとして統合するためのガイドです。
+package-publisherをClaude Codeエージェントとして統合するためのガイドです（Rust実装）。
 
 ## 📋 目次
 
@@ -14,16 +14,17 @@ package-publisherをClaude Codeエージェントとして統合するための�
 
 ## 概要
 
-package-publisherは、複数のパッケージレジストリ（npm, crates.io, PyPI, Homebrew）への公開を自動化するClaude Codeエージェントです。
+package-publisherは、複数のパッケージレジストリ（npm, crates.io, PyPI, Homebrew）への公開を自動化するRust製CLIツールです。
 
 ### 主な機能
 
 - 🔍 **自動検出**: プロジェクトの種類を自動判別
 - ✅ **検証**: パッケージメタデータ、テスト、Lintの実行
-- 🔒 **セキュリティ**: 機密情報スキャン、安全なトークン管理
+- 🔒 **セキュリティ**: 機密情報スキャン（aho-corasick高速化）、Shannon entropy分析
 - 🎯 **Dry-run**: 実際の公開前にシミュレーション
 - ♻️ **ロールバック**: 公開の取り消し（レジストリ依存）
-- 📊 **状態管理**: 再開可能なワークフロー
+- 📊 **状態管理**: 再開可能なワークフロー（11段階）
+- 📈 **Analytics**: JSON永続化、統計レポート
 
 ### 対応レジストリ
 
@@ -39,11 +40,16 @@ package-publisherは、複数のパッケージレジストリ（npm, crates.io,
 ### 1. インストール
 
 ```bash
-# グローバルインストール
-npm install -g package-publisher
+# crates.ioからインストール（公開後）
+cargo install package-publisher
 
-# または、プロジェクトローカル
-npm install --save-dev package-publisher
+# またはソースからビルド
+git clone https://github.com/sanae-abe/package-publisher
+cd package-publisher
+cargo build --release
+
+# バイナリ確認
+./target/release/package-publisher --version
 ```
 
 ### 2. Claude Code エージェント登録
@@ -52,8 +58,7 @@ npm install --save-dev package-publisher
 
 ```bash
 # エージェント定義をコピー
-cp node_modules/package-publisher/agent-definition.yaml \
-   ~/.claude/agents/package-publisher.yaml
+cp agent-definition.yaml ~/.claude/agents/package-publisher.yaml
 ```
 
 ### 3. 環境変数設定
@@ -84,7 +89,7 @@ export HOMEBREW_GITHUB_API_TOKEN="your-github-token"
 ```yaml
 name: package-publisher
 version: 0.1.0
-description: Multi-registry package publishing assistant
+description: Multi-registry package publishing assistant (Rust)
 
 capabilities:
   - package_detection
@@ -94,6 +99,7 @@ capabilities:
   - publish
   - verification
   - rollback
+  - analytics
 
 registries:
   - npm
@@ -113,14 +119,28 @@ commands:
       - --dry-run-only: Only perform dry-run
       - --non-interactive: Run in CI/CD mode
       - --registry <name>: Specify target registry
-      - --otp <code>: 2FA code (npm)
-      - --tag <name>: Publish tag
+      - --registries <list>: Batch publish to multiple registries
+      - --sequential: Publish sequentially (not parallel)
       - --resume: Resume from previous state
 
+  stats:
+    description: Display publishing statistics
+    usage: package-publisher stats [--days <N>]
+
+  report:
+    description: Generate analytics report
+    usage: package-publisher report [--format <markdown|json>]
+
 security:
-  token_management: environment_variables
-  secrets_scanning: enabled
+  secrets_scanning:
+    enabled: true
+    patterns: 23  # プレフィックス検出数
+    algorithm: aho-corasick
+  credential_validation:
+    enabled: true
+    algorithm: shannon_entropy
   command_injection_prevention: enabled
+  safe_command_executor: whitelist-based
 ```
 
 ## 使用方法
@@ -211,14 +231,24 @@ package-publisher publish --registry npm
 # CI/CD向け非対話的公開
 package-publisher publish --non-interactive
 
-# 2FA対応（npm）
-package-publisher publish --otp 123456
+# 複数レジストリへのバッチ公開
+package-publisher publish --registries npm,pypi,crates
 
-# タグ付き公開
-package-publisher publish --tag beta
+# 順次公開（並列ではなく）
+package-publisher publish --registries npm,pypi --sequential
 
 # 状態から再開
 package-publisher publish --resume
+```
+
+#### Analytics
+
+```bash
+# 公開統計の表示
+package-publisher stats --days 30
+
+# レポートの生成
+package-publisher report --format markdown --output report.md
 ```
 
 ## コマンドリファレンス
@@ -247,25 +277,43 @@ package-publisher publish --resume
 
 **オプション**:
 - `-r, --registry <name>`: 公開先レジストリ
+- `--registries <list>`: 複数レジストリ指定（カンマ区切り）
 - `--dry-run-only`: Dry-runのみ実行
 - `--non-interactive`: 非対話モード（CI/CD向け）
+- `--sequential`: 順次公開（デフォルトは並列）
 - `--resume`: 中断した公開を再開
-- `--otp <code>`: 2FAワンタイムパスワード（npm）
-- `--tag <name>`: 公開タグ（デフォルト: latest）
-- `--access <level>`: アクセスレベル（public/restricted）
 
-**実行フロー**:
+**実行フロー（11段階）**:
 1. レジストリ検出
-2. セキュリティスキャン
-3. パッケージ検証
-4. Dry-run実行
-5. ユーザー確認（対話モードのみ）
-6. 公開実行
-7. 検証（レジストリAPI確認）
+2. 設定読み込み
+3. バリデーション
+4. セキュリティスキャン
+5. Dry-run実行
+6. ユーザー確認（対話モードのみ）
+7. 公開実行
+8. 検証（レジストリAPI確認）
+9. Analytics記録
+10. 通知（オプション）
+11. クリーンアップ
 
 **終了コード**:
 - `0`: 公開成功
 - `1`: 公開失敗
+
+### `stats` コマンド
+
+公開統計を表示します。
+
+**オプション**:
+- `--days <N>`: 過去N日間の統計
+
+### `report` コマンド
+
+Analytics レポートを生成します。
+
+**オプション**:
+- `--format <markdown|json>`: レポート形式
+- `--output <path>`: 出力ファイルパス
 
 ## トラブルシューティング
 
@@ -273,7 +321,7 @@ package-publisher publish --resume
 
 #### 1. 認証エラー
 
-**エラー**: `AUTHENTICATION_FAILED: 認証に失敗しました`
+**エラー**: `Authentication failed for registry`
 
 **解決方法**:
 ```bash
@@ -288,57 +336,20 @@ export NPM_TOKEN="your-new-token"
 npm token list
 ```
 
-#### 2. 2FA要求エラー（npm）
+#### 2. 機密情報検出
 
-**エラー**: `OTP_REQUIRED: 2要素認証が必要です`
-
-**解決方法**:
-```bash
-# OTPを指定して再実行
-package-publisher publish --otp 123456
-```
-
-#### 3. バージョン競合
-
-**エラー**: `VERSION_CONFLICT: 同じバージョンが既に公開されています`
+**エラー**: `Secrets detected in package`
 
 **解決方法**:
-```bash
-# バージョンを更新
-npm version patch  # または minor, major
 
-# 再度公開
-package-publisher publish
-```
-
-#### 4. 機密情報検出
-
-**エラー**: `SECRETS_DETECTED: ハードコードされた機密情報が検出されました`
-
-**解決方法**:
-1. 検出されたファイルから機密情報を削除
-2. 環境変数に移行
-3. `.gitignore`に追加
-
-```bash
-# 機密情報を環境変数に
-export API_KEY="your-api-key"
-
-# コード内で使用
-const apiKey = process.env.API_KEY
-```
-
-#### 5. 状態ファイル破損
-
-**エラー**: `STATE_CORRUPTED: 状態ファイルが破損しています`
-
-**解決方法**:
-```bash
-# 状態ファイルを削除
-rm .publish-state.json
-
-# 最初から再実行
-package-publisher publish
+**誤検出の場合**（テストファイル、サンプル）:
+```yaml
+# .publish-config.yaml
+security:
+  secretsScanning:
+    ignorePatterns:
+      - "**/*test*.{rs,ts,js,py}"
+      - "docs/**/*.md"
 ```
 
 ### デバッグモード
@@ -347,7 +358,10 @@ package-publisher publish
 
 ```bash
 # 環境変数でデバッグモード有効化
-DEBUG=package-publisher:* package-publisher publish
+RUST_LOG=debug package-publisher publish
+
+# バックトレース有効化
+RUST_BACKTRACE=1 package-publisher publish
 ```
 
 ## セキュリティベストプラクティス
@@ -355,9 +369,9 @@ DEBUG=package-publisher:* package-publisher publish
 ### 1. トークン管理
 
 ❌ **悪い例**:
-```javascript
+```rust
 // ハードコード（絶対にしない）
-const token = "npm_abc123xyz..."
+const TOKEN: &str = "npm_abc123xyz...";
 ```
 
 ✅ **良い例**:
@@ -388,25 +402,24 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Build package-publisher
+        run: cargo build --release
 
       - name: Run tests
-        run: npm test
+        run: cargo test --lib
 
       - name: Publish to npm
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm install -g package-publisher
-          package-publisher publish --non-interactive --registry npm
+          ./target/release/package-publisher publish \
+            --non-interactive \
+            --registry npm
 ```
 
 ### 3. 権限最小化
@@ -425,6 +438,10 @@ jobs:
 ```bash
 # 公開ログをファイルに保存
 package-publisher publish 2>&1 | tee publish-$(date +%Y%m%d-%H%M%S).log
+
+# Analytics機能で統計確認
+package-publisher stats --days 30
+package-publisher report --format markdown --output report.md
 ```
 
 ### 5. Dry-run必須
@@ -471,7 +488,7 @@ package-publisher publish --non-interactive
 # 5. Verify
 echo "4️⃣ Verifying..."
 sleep 10  # Wait for registry propagation
-npm view my-package@$(node -p "require('./package.json').version")
+npm view my-package@$(cargo metadata --format-version 1 | jq -r '.packages[0].version')
 
 echo "✅ Publish workflow completed"
 ```
@@ -479,8 +496,11 @@ echo "✅ Publish workflow completed"
 ### 複数レジストリへの公開
 
 ```bash
-# npmとnpm registryに同時公開
-package-publisher publish --registry npm
+# npm, PyPI, crates.ioに同時公開
+package-publisher publish --registries npm,pypi,crates
+
+# エラー時も継続
+package-publisher publish --registries npm,pypi,crates --continue-on-error
 
 # Homebrewの場合は別途Tap更新が必要
 cd ~/homebrew-tap
@@ -490,9 +510,9 @@ package-publisher publish --registry homebrew
 
 ## 関連ドキュメント
 
-- [Plugin Development Guide](./PLUGIN_DEVELOPMENT.md) - カスタムプラグイン開発
-- [Security Policy](../SECURITY.md) - セキュリティポリシー
-- [Contributing Guide](../CONTRIBUTING.md) - 貢献ガイド
+- [Plugin Development Guide](./PLUGIN_DEVELOPMENT.md) - カスタムプラグイン開発（Rust）
+- [CLI Testing Guide](./CLI-TESTING-GUIDE.md) - CLI Testing Specialist統合
+- [CI/CD Integration](./CI_CD_INTEGRATION.md) - CI/CD統合ガイド
 
 ## サポート
 
@@ -501,5 +521,5 @@ package-publisher publish --registry homebrew
 
 ---
 
-**Last Updated**: 2025-01-10
-**Version**: 0.1.0
+**Last Updated**: 2025-11-15
+**Version**: 0.1.0 (Rust)
