@@ -18,15 +18,6 @@ CLI Testing Specialist統合ガイド - 自動テスト生成と実行
 #### [PLUGIN_DEVELOPMENT.md](./PLUGIN_DEVELOPMENT.md)
 カスタムプラグイン開発ガイド（Rust実装）
 
-## 🗄️ アーカイブ
-
-#### [archives/](./archives/)
-過去のドキュメント、移行計画、テストレポート
-
-- **rust-migration/**: Rust移行計画とレビュー結果（完了）
-- **testing-reports/**: CLI/CI検証レポート（完了）
-- **phases/**: Phase 1/Phase 2実装ドキュメント（完了）
-
 ## 🚀 クイックスタート
 
 ```bash
