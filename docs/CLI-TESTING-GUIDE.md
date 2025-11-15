@@ -93,40 +93,28 @@ cat reports/package-publisher-tests-report.md
 
 ### 詳細手順
 
-#### Step 1: ビルドとラッパースクリプト作成
+#### Step 1: ビルド
 
 ```bash
 # package-publisher をビルド
-npm ci
-npm run build
-
-# Node.js バイナリ用のラッパースクリプト作成
-cat > package-publisher-wrapper.sh << 'EOF'
-#!/bin/bash
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# Execute the Node.js CLI with all arguments
-node "$SCRIPT_DIR/dist/cli.js" "$@"
-EOF
-
-chmod +x package-publisher-wrapper.sh
+cargo build --release
 
 # 動作確認
-./package-publisher-wrapper.sh --version
-./package-publisher-wrapper.sh --help
+./target/release/package-publisher --version
+./target/release/package-publisher --help
 ```
 
-**なぜラッパースクリプトが必要？**
-- cli-testing-specialist はシェルスクリプトまたはネイティブバイナリを期待
-- Node.js CLI (`node dist/cli.js`) を直接解析できない
-- ラッパースクリプトで `node dist/cli.js` を実行可能形式にラップ
+**Rustバイナリの利点**:
+- ラッパースクリプト不要（実行可能ファイルとして直接解析可能）
+- クロスプラットフォーム対応（Ubuntu/macOS/Windows）
+- 高速起動
 
 #### Step 2: CLI解析
 
 ```bash
 # package-publisher の構造を解析
 cli-testing-specialist analyze \
-  ./package-publisher-wrapper.sh \
+  ./target/release/package-publisher \
   --output package-publisher-analysis.json
 
 # 解析結果確認
@@ -218,18 +206,10 @@ on:
 
 ```bash
 # ローカルでCI再現
-npm ci
-npm run build
-
-# ラッパースクリプト作成
-cat > package-publisher-wrapper.sh << 'EOF'
-#!/bin/bash
-node "$(dirname "$0")/dist/cli.js" "$@"
-EOF
-chmod +x package-publisher-wrapper.sh
+cargo build --release
 
 # テスト実行
-cli-testing-specialist analyze ./package-publisher-wrapper.sh -o analysis.json
+cli-testing-specialist analyze ./target/release/package-publisher -o analysis.json
 cli-testing-specialist generate analysis.json -o tests -c all
 cli-testing-specialist run tests -f all -o reports --timeout 60
 
@@ -355,30 +335,27 @@ bats package-publisher-tests/security.bats
 bats -t package-publisher-tests/security.bats
 ```
 
-### ラッパースクリプトエラー
+### バイナリパスエラー
 
 ```bash
-# ラッパースクリプトの動作確認
-./package-publisher-wrapper.sh --version
+# バイナリの存在確認
+ls -la ./target/release/package-publisher
 
-# Node.js CLI の直接確認
-node dist/cli.js --version
+# バイナリの実行確認
+./target/release/package-publisher --version
 
 # パス解決の確認
-which package-publisher-wrapper.sh
-ls -la package-publisher-wrapper.sh
+which package-publisher  # グローバルインストール後
 ```
 
-### Node.js バージョンエラー
+### Rustバージョンエラー
 
 ```bash
-# Node.js バージョン確認
-node --version  # 18.0.0+ 必須
+# Rust バージョン確認
+rustc --version  # 1.75.0+ 必須
 
-# nvm でバージョン切り替え（macOS/Linux）
-nvm use 18
-# または
-nvm use 20
+# Rust更新
+rustup update stable
 ```
 
 ### タイムアウトエラー
@@ -392,19 +369,13 @@ cli-testing-specialist run package-publisher-tests -f json -o reports --timeout 
 
 ```bash
 # GitHub Actions ログから該当箇所確認
-# Artifacts から cli-test-reports-ubuntu-latest-node20 をダウンロード
+# Artifacts から cli-test-reports-ubuntu-latest-ruststable をダウンロード
 # package-publisher-tests-report.md を確認
 
 # ローカルで再現
-npm ci
-npm run build
-cat > package-publisher-wrapper.sh << 'EOF'
-#!/bin/bash
-node "$(dirname "$0")/dist/cli.js" "$@"
-EOF
-chmod +x package-publisher-wrapper.sh
+cargo build --release
 
-cli-testing-specialist analyze ./package-publisher-wrapper.sh -o analysis.json
+cli-testing-specialist analyze ./target/release/package-publisher -o analysis.json
 cli-testing-specialist generate analysis.json -o tests -c all
 cli-testing-specialist run tests -f json -o reports
 ```
@@ -413,23 +384,23 @@ cli-testing-specialist run tests -f json -o reports
 
 ## FAQ
 
-### Q1: なぜラッパースクリプトが必要ですか？
+### Q1: ラッパースクリプトは必要ですか？
 
-**A**: cli-testing-specialist はシェルスクリプトまたはネイティブバイナリを解析するため、Node.js CLI (`node dist/cli.js`) を実行可能形式にラップする必要があります。
+**A**: いいえ、Rust実装ではラッパースクリプトは不要です。Rustバイナリは実行可能ファイルとして直接指定できます。
 
-### Q2: npm パッケージとしてグローバルインストールできますか？
+### Q2: cargo install でグローバルインストールできますか？
 
-**A**: はい、グローバルインストール後は以下のようにテスト可能:
+**A**: はい、crates.io公開後は以下のようにグローバルインストール可能:
 
 ```bash
-npm install -g .
+cargo install package-publisher
 cli-testing-specialist analyze $(which package-publisher) -o analysis.json
 ```
 
 ### Q3: テスト生成にどれくらい時間がかかりますか？
 
 **A**: package-publisher の場合:
-- ビルド: 3-5秒（`npm run build`）
+- ビルド: 30-60秒（`cargo build --release`、初回）
 - 解析: 100-200ms
 - テスト生成: 1-2秒
 - テスト実行: 30-60秒（カテゴリ数による）

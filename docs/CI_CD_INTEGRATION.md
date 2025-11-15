@@ -153,26 +153,28 @@ stages:
 
 test:
   stage: test
+  image: rust:latest
   script:
-    - npm ci
-    - npm test
+    - cargo test --lib
 
 build:
   stage: build
+  image: rust:latest
   script:
-    - npm run build
+    - cargo build --release
   artifacts:
     paths:
-      - dist/
+      - target/release/package-publisher
 
 publish:npm:
   stage: publish
+  image: rust:latest
   environment:
     name: production
   script:
-    - npm install -g package-publisher
+    - cargo build --release
     - |
-      package-publisher publish \
+      ./target/release/package-publisher publish \
         --registry npm \
         --non-interactive \
         --tag latest
@@ -207,25 +209,35 @@ publish:npm:
 ```yaml
 version: 2.1
 
-orbs:
-  node: circleci/node@5.1
+executors:
+  rust-executor:
+    docker:
+      - image: rust:latest
 
 jobs:
   test:
-    executor: node/default
+    executor: rust-executor
     steps:
       - checkout
-      - node/install-packages
-      - run: npm test
+      - restore_cache:
+          keys:
+            - cargo-cache-{{ checksum "Cargo.lock" }}
+      - run: cargo test --lib
+      - save_cache:
+          key: cargo-cache-{{ checksum "Cargo.lock" }}
+          paths:
+            - ~/.cargo
 
   publish:
-    executor: node/default
+    executor: rust-executor
     steps:
       - checkout
-      - node/install-packages
-      - run: npm install -g package-publisher
+      - restore_cache:
+          keys:
+            - cargo-cache-{{ checksum "Cargo.lock" }}
+      - run: cargo build --release
       - run: |
-          package-publisher publish \
+          ./target/release/package-publisher publish \
             --registry npm \
             --non-interactive
 
