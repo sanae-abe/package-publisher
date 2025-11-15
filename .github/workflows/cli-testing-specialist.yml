@@ -57,12 +57,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cargo/bin/cli-testing-specialist
-          key: ${{ runner.os }}-cli-testing-specialist-v1.0.2
+          key: ${{ runner.os }}-cli-testing-specialist-acaf513
 
       - name: Install cli-testing-specialist
         if: steps.cache-cli-testing-specialist.outputs.cache-hit != 'true'
         run: |
-          cargo install --git https://github.com/sanae-abe/cli-testing-specialist --rev 3411fd4f8b2cb4937cb1c62082e4f62cbf783274 cli-testing-specialist
+          cargo install --git https://github.com/sanae-abe/cli-testing-specialist --rev acaf51359d666434240d19d3a1cfa2ae1808f1c1 cli-testing-specialist
 
       - name: Verify cli-testing-specialist installation
         run: cli-testing-specialist --version
@@ -237,12 +237,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cargo/bin/cli-testing-specialist
-          key: ${{ runner.os }}-cli-testing-specialist-v1.0.2
+          key: ${{ runner.os }}-cli-testing-specialist-acaf513
 
       - name: Install cli-testing-specialist
         if: steps.cache-cli-testing-specialist-security.outputs.cache-hit != 'true'
         run: |
-          cargo install --git https://github.com/sanae-abe/cli-testing-specialist --rev 3411fd4f8b2cb4937cb1c62082e4f62cbf783274 cli-testing-specialist
+          cargo install --git https://github.com/sanae-abe/cli-testing-specialist --rev acaf51359d666434240d19d3a1cfa2ae1808f1c1 cli-testing-specialist
 
       - name: Create wrapper script for Rust binary
         run: |
